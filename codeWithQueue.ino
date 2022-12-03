@@ -6,7 +6,7 @@
 Adafruit_MPU6050 mpu;
 
 const int MAX_QUEUE_SIZE = 50;
-const long THRESHOLD;
+const float THRESHOLD = 1;
 
 int PWMPin = 11;
 int dirPin1 = 12;
@@ -20,13 +20,13 @@ bool isLanded = false;
 bool isLeveled = false;
 bool collectData;
 
-// Initializing to 1 because the value is incremented at the end of the function
-int currentQueueSize = 1; 
+int currentQueueSize; 
+int counter;
+float curSum;
+float temp;
+float previousValue;
 
-long curSum = 0;
-long temp = 0;
-
-ArduinoQueue<long> data(MAX_QUEUE_SIZE);
+ArduinoQueue<float> data(MAX_QUEUE_SIZE);
 
 
 
@@ -44,10 +44,23 @@ void setup() {
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
   delay(100);
 
-  // Initializing queue
+  /*
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+  float initXRot = 
+  float initYRot = 
+  float initZRot = 
+  */
+
   for(int i = 0; i < MAX_QUEUE_SIZE; i++) {
     data.enqueue(0);
   }
+
+  currentQueueSize = 1;   // Initializing to 1 because the value is incremented at the end of the function
+  counter = 0;
+  curSum = 0;
+  temp = 0;
+  previousValue = 0;
 
 }
 
@@ -56,19 +69,32 @@ void loop() {
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
-  queueLogic( a.acceleration.x );
-  Serial.println(curSum);
-  
-  // Landing detected
+  float normalized = normalize( a.acceleration.x, a.acceleration.y, a.acceleration.z );
+  queueLogic( normalized );
+
+  if(!detectLanding()) {  
+  }
   if(detectLanding()) {
     motorLogic( a.acceleration.y );
   }
   
-  // Platform is leveled
-  if(isLeveled) {
-    // Stop movement
+  Serial.print("AccelX:");
+  Serial.print(a.acceleration.x);
+  Serial.print(",");
+  Serial.print("AccelY:");
+  Serial.print(a.acceleration.y);
+  Serial.print(",");
+  Serial.print("AccelZ:");
+  Serial.print(a.acceleration.z);
+  Serial.println(" ");
 
-  }
+  /*
+    // Platform is leveled
+    if(isLeveled) {
+      // Stop movement
+
+    }
+  */
 }
 
 
@@ -77,10 +103,6 @@ void loop() {
  * which way to spin the motors
  */
 void motorLogic(float readVal) {
-  //sensors_event_t a, g, temp;
-  //mpu.getEvent(&a, &g, &temp);
-  //float readVal = a.acceleration.y;
-
   float runVal = (readVal * smoothVal) + (runVal * (1-smoothVal));
 
   if(abs(runVal) > threshVal){
@@ -104,31 +126,28 @@ void motorWrite(bool dir, int speed) {
   analogWrite(PWMPin, speed);
 }
 
-
 /**
- * Will perform a running average on the queue, both adding and removing 
- * 
- * Currently does not update curSum
+ * Will perform a running average on the queue, 
+ * Both adding a removing values.  
  */
-void queueLogic(long newValue) {
-  // Store the current value divided by the queue size to save time when dequeue-ing
-  temp = newValue / currentQueueSize;
+void queueLogic(float newValue) {
+  float difference = abs(newValue - previousValue);
+  float head = data.dequeue();
 
-  // Adding newValue's weight to the current running average
-  curSum = curSum + (temp);
+  // Setting the current running average to 
+  curSum = curSum + difference - head;
+  previousValue = newValue;
 
-  // Incrementing Queue size for next iteration
-  if(currentQueueSize < MAX_QUEUE_SIZE) {
-    currentQueueSize += 1;
-  }
-  // Since the queue is full, start dequeue-ing
-  else {
-    // Removing the dequeued value's weight from the running average
-    curSum = curSum - (data.dequeue() / 50);
-  }
+  // Putting the new reading on the queue
+  data.enqueue(difference);
 
-  // Pushing newValue onto the queue
-  data.enqueue(temp);
+  //Serial.println( curSum );
+  //Serial.println( difference );
+}
+
+float normalize(float x, float y, float z) {
+  float normalizedValue = sqrt(sq(x) + sq(y) + sq(z));
+  return normalizedValue;
 }
 
 /**
@@ -136,13 +155,21 @@ void queueLogic(long newValue) {
  * the running average of the sensor data.  
  */
 bool detectLanding() {
-  // This inequality might need to be flipped
-  if((THRESHOLD < curSum) && collectData) {
+  if(curSum < THRESHOLD) {
     return true;
   }
-  // Else: fall through 
-  return false;
+  else {
+    return false;
+  }
 }
+
+/**
+ *
+ */
+void rotationProtection(bool direction, float y) {
+  
+}
+
 
 
 
