@@ -5,12 +5,18 @@
 
 Adafruit_MPU6050 mpu;
 
+const int SAMPLE_PERIOD = 100;
 const int MAX_QUEUE_SIZE = 50;
 const int MAX_ANGLE = 10;     // Maximum the accelerometer can output
 const int MIN_ANGLE = -10;    // Minimum the accelerometer can output
 const float THRESHOLD = 1;    // Used for the running average in landing detection to see if the rocket is moving or not
 const float EPSILON = 0.02;   // Used for comparing floats in the rotation protection function
+const bool CW = true;
+const bool CCW = false;
+const int MAX_ROT_RATE = 8;
+const int LAUNCH_THRESHOLD = 19;
 
+int curState = 0;
 int PWMPin = 11;
 int dirPin1 = 12;
 int dirPin2 = 13;
@@ -19,16 +25,19 @@ float threshVal = 0.5;
 float smoothVal = 0.8;
 float runVal = 0;
 
-bool isLanded = false;
+bool hasLanded;
+bool hasLaunched;
 bool isLeveled = false;
 bool collectData;
+bool prevLaunchSign;
 
+int launchCounter;
 int currentQueueSize; 
 int rotationCounter;
 int state;
 int prevState;
 
-float initAngel;
+float initValue;
 float curSum;
 float temp;
 float previousValue;
@@ -55,40 +64,63 @@ void setup() {
     data.enqueue(0);
   }
 
+  hasLanded = false;
+  hasLaunched = false;
   currentQueueSize = 1;   // Initializing to 1 because the value is incremented at the end of the function
   state = 0;
   prevState = 1;
   rotationCounter = 0;
-  initAngle = 100;
+  initValue = 100;
   curSum = 0;
   temp = 0;
   previousValue = 0;
+  launchCounter = 0;
 
 }
 
 void loop() {
-  delay(100);
+  delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
-
+  curState = (int)hasLaunched + (int)hasLanded;
   float normalized = normalize( a.acceleration.x, a.acceleration.y, a.acceleration.z );
   queueLogic( normalized );
 
-  if(!detectLanding()) {  
-  }
-  if(detectLanding()) {
-    motorLogic( a.acceleration.y );
-  }
-
-  rotationProtection(a.acceleration.y);
-
-  /*
-    // Platform is leveled
-    if(isLeveled) {
-      // Stop movement
-
+  if(hasLaunched) {
+    if(hasLanded) {
+      motorLogic( a.acceleration.x, a.acceleration.z );
     }
-  */
+    else {
+      hasLanded = detectImpulse( a.acceleration.x );
+      motorWrite(false, 0);
+    }
+  }
+  else {
+    if(abs(a.acceleration.y) > LAUNCH_THRESHOLD) {
+      if(prevLaunchSign == (a.acceleration.y > 0)) {
+        launchCounter++;
+      }      
+      else {
+        launchCounter = 0;
+      }
+    }
+    else {
+      launchCounter = 0;
+    }
+    if(!hasLaunched && launchCounter >= 1000 / SAMPLE_PERIOD) {
+      hasLaunched = true;
+    }
+  }
+
+  Serial.print(curState);
+  Serial.print(", ");
+  Serial.print(a.acceleration.x);
+  Serial.print(", ");
+  Serial.print(a.acceleration.y);
+  Serial.print(", ");
+  Serial.println(a.acceleration.z);
+  
+  // rotationProtection( ,  , a.acceleration.x);
 }
 
 
@@ -96,20 +128,28 @@ void loop() {
  * Reads values from the sensor and determines 
  * which way to spin the motors
  */
-void motorLogic(float readVal) {
+void motorLogic(float readVal, float z) {
   float runVal = (readVal * smoothVal) + (runVal * (1-smoothVal));
 
-  if(abs(runVal) > threshVal){
-    motorWrite(runVal < 0, 20*abs(runVal));
+  if(z < 0 || runVal > MAX_ROT_RATE){
+    if(runVal > 0){
+      runVal = MAX_ROT_RATE;
+    }
+    else{
+      runVal = -MAX_ROT_RATE;
+    }
   }
-  else{
+
+  if( abs(runVal) > threshVal ) {
+    motorWrite( runVal < 0, 20*abs(runVal) );
+  }
+  else {
     motorWrite(false, 0);
     isLeveled = true;
   }
-  Serial.println(runVal);
+
   delay(100);
 }
-
 
 /** 
  * Sets the speed and direction of the motors
@@ -134,9 +174,6 @@ void queueLogic(float newValue) {
 
   // Putting the new reading on the queue
   data.enqueue(difference);
-
-  //Serial.println( curSum );
-  //Serial.println( difference );
 }
 
 float normalize(float x, float y, float z) {
@@ -148,8 +185,9 @@ float normalize(float x, float y, float z) {
  * Will output true if the threshold value has been passed for  
  * the running average of the sensor data.  
  */
-bool detectLanding() {
-  if( abs(curSum - THRESHOLD) <= 0) {
+bool detectImpulse(float initialAngle) {
+  if( abs(curSum) <= THRESHOLD) {
+    initValue = initialAngle;
     return true;
   }
   else {
@@ -160,46 +198,25 @@ bool detectLanding() {
 /**
  *
  */
-void rotationProtection(bool dir, float y) {
-  
-/*
-Every passing of max / min, relative to the starting position, is a half turn
-  Determining max and min would be +10 or -10 from the starting position
-If we keep track of the number of times we pass max / min and add / subtract based on the direction we're going, 
-  and mod 2, then we could tell if we made a full turn
-
-Better idea
-
-State machine: 
-  State 0 (starting state) = Initial value
-  State 1a                 = Negative extreme
-  State 1b                 = Positive extreme
-  State 2                  = Negative of the original value
-  State 3a                 = Positive extreme
-  State 3b                 = Negative extreme
-  State 4 (or 0)           = Initial value
-
-
-*/
+void rotationProtection(bool start, bool dir, float axis) {
 
   float comparisonVal = 0;
 
   switch(state) {
     case 0: /**  @ Hold / Reset  **/
       if(start) {
-        initAngel = y;
         state = prevState;    // prevState is initial set to 1
-        return
+        return;
       }
       else { state = 0; }
       
       break;
 
-    case 1: /**  @ Initial Angel  **/
-      if( (dir == CCW) && (abs(y - MAX_ANGLE) <= EPSILON) ) {
-        state = 2
+    case 1: /**  @ Initial Angle  **/
+      if( (dir == CCW) && (abs(axis - MAX_ANGLE) <= EPSILON) ) {
+        state = 2;
       }
-      else if( (dir == CW) && (abs(y - MIN_ABGLE) <= EPSILON) ) {
+      else if( (dir == CW) && (abs(axis - MIN_ANGLE) <= EPSILON) ) {
         state = 3;
       }
       else if( !start ) {
@@ -212,11 +229,11 @@ State machine:
 
     case 2: /**  Extreme 1  **/
       // Moving to Negative
-      if( abs(y - initValue) <= EPSILON ) {
+      if( abs(axis - initValue) <= EPSILON ) {
         state = 4;
       }
       // Moving back to Initial Value
-      else if( abs(y - initValue) <= EPSILON ) {
+      else if( abs(axis - initValue) <= EPSILON ) {
         state = 1;
       }
       // Motor stopped spinning, moving to Hold
@@ -230,12 +247,13 @@ State machine:
 
     case 3: /**  Extreme 2  **/
       // Moving to Negative
-      //   y + because the value should be the negative of the initial, saves a multiplication                                                            // TODO: Be sure this is right 
-      if( abs(y + initValue) <= EPSILON ) {
-        state = 4;
+      if( abs(axis - initValue) <= EPSILON ) {
+        state = 1;
       }
-      else if() {
-
+      // y + initValue since y should be negative (the opposite of initValue)
+      //   They should then cancel out and give a zero
+      else if( abs(axis + initValue) <= EPSILON ) {
+        state = 5;
       }
       else if( !start ) {
         state = 0;
@@ -251,17 +269,10 @@ State machine:
       break;
     case 6: /**  @ Extreme 1  **/
       break;
-    default
+    default:
       // Error...
       break;
   }
-
-
-  Serial.print(y);
-  Serial.print(" ");
-  Serial.print(rotationCounter);
-  Serial.println(" ");
-
 }
 
 
