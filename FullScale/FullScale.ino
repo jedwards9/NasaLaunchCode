@@ -5,85 +5,7 @@
 #include <Wire.h>
 #include <Servo.h>
 #include "uRTCLib.h";
-
-/**  Pin Definitions  **/
-const int mainPWM = 11;
-const int mainP1 = 12;
-const int mainP2 = 13;
-const int tiltPin = 9;
-const int rotationPin = 8;
-const int telescopePin = 7;
-const int STBY = 5;
-
-/**  Program Constants  **/  
-const int SAMPLE_PERIOD = 100;
-const int MAX_QUEUE_SIZE = 50;
-const int MAX_ANGLE = 10;
-const int TILT_SERVO_SPEED = 45;
-const int DELAY_60o = 500;
-
-// might want different speeds for the different axes
-const int ROTATION_SPEED = 8;     // Rotation speed for main axis
-
-/**  Threshold Values  **/
-const float INITIAL_THRESH = 0.5; // Main axis threshold
-const int LANDING_THRESH = 1;     // Landing movement threshold
-const int LAUNCH_THRESH = 19;     // Launch movement threshold
-const float EPSILON = 0.02;       // Float comparison error threshold
-const float MAIN_EPSILON = 0.2;   // Float comparison error threshold for MAIN leveling 
-const float TILT_EPSILON =  0.5;  // Float comparison error threshold for TILT leveling
-
-/** Picture Commands **/
-const int TAKE_PICTURE = 1;
-const int TO_GRAY = 2;
-const int TO_COLOR = 3;
-const int APPLY_SPECIAL = 4;
-const int REMOVE_FILTER = 5;
-const int FLIP_180 = 6;
-
-/**  Enums Variables  **/
-enum flightStage { 
-  ON_PAD, 
-  IN_AIR, 
-  LANDED 
-};
-enum levelAxis {
-  NONE,
-  MAIN,
-  TELESCOPE,
-  R_AXIS,
-  LEVELED
-};
-struct sensorReadings { 
-  float x;
-  float y;
-  float z;
-};
-
-/**  Function Specific Variables  **/
-float previous_value;   // Queue logic
-float curSum;           // Queue logic
-float smoothVal;        // Motor logic
-float runVal;           // Motor logic
-float normalized;       // Normalize
-float initial_angle;    // Loop -- IN_AIR
-int state;              // Rotation Protextion
-int stateCounter;       // Loop -- ON_PAD
-bool prevLaunchSign;    // 
-int tilt_pos;           // Motor Logic
-String comStr;
-
-/**  Global Variables  **/
-sensorReadings readings;
-flightStage rocket_state;
-levelAxis level;
-ArduinoQueue<float> data(MAX_QUEUE_SIZE);
-Adafruit_MPU6050 mpu;
-uRTCLib rtc(0x68);
-Servo tiltServo;
-Servo rotationServo;
-Servo telescopeServo;
-
+#include "Globals.h";
 
 void setup() {
   pinMode(11, INPUT_PULLUP);
@@ -91,9 +13,6 @@ void setup() {
 
   // RTC setup 
   URTCLIB_WIRE.begin();
-
-  // ESP32 communication setup
-  Serial.begin(9600);
 
   // MPU setup 
   Serial.begin(115200);
@@ -111,7 +30,7 @@ void setup() {
 
   // Initializing servo pins
   tiltServo.attach(tiltPin);
-  rotationServo.attach(rotationPin);
+  rotationServo.attach(swivelPin);
 
   // Setting servos initially to off
   tiltServo.write(90);
@@ -123,51 +42,44 @@ void setup() {
   }
 
   // Variable initialization 
-  normalized = 0;                       // Normalized vector
-  flightStage rocket_state = ON_PAD;    // Stage counter 
-  levelAxis level = NONE;               // Axis being leveled
-  stateCounter = 0;                     // Durration of still time on ground
-  prevLaunchSign = false;               // Launch counter direction
+  rocket_state = ON_PAD;    // Stage counter 
+  currAxis = NONE;               // Axis being leveled
   initial_angle = 0.0;                  // Starting position of camera upon landing
-  state = 0;                            // Rotation protection FSM state
-  smoothVal = 0.8;                      // Movement constant for motorLogic
-  runVal = 0;                           // Corrected value for motorLogic
-  comStr = "";                          // 
 }
 
 void loop() {
   delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
-  readings = { a.acceleration.x, a.acceleration.y, a.acceleration.z };
-  normalized = normalize();
-  queueLogic( normalized );
+  sensorReadings readings = { a.acceleration.x, a.acceleration.y, a.acceleration.z };
+  float magnitude = mag(readings);
+  int queueSum = queueLogic(magnitude);
 
   switch(rocket_state) {
     case ON_PAD:
       // Waiting for takeoff
-      if( impulseDetection(LAUNCH_THRESH) ) {
+      if( impulseDetection(LAUNCH_THRESH, readings, queueSum) ) {
         rocket_state = IN_AIR;
       }
       // Else: do nothing
       break;
     case IN_AIR:
       // Wait for landing 
-      if( impulseDetection(LANDING_THRESH) ) {
+      if( impulseDetection(LANDING_THRESH, readings, queueSum) ) {
         rocket_state = LANDED;
         initial_angle = readings.z;
       }
       break;
     case LANDED:
       // Level axes
-      if ( level == NONE ) {
+      if ( currAxis == NONE ) {
         // Wait for no movement
-        impulseDetection(LANDING_THRESH);
+        impulseDetection(LANDING_THRESH, readings, queueSum);
       }
-      else if( level == MAIN)  {
+      else if( currAxis == MAIN)  {
         if(rotationProtection) {
           // Begin leveling
-          motorLogic(readings.z);
+          motorLogic(readings.z, readings);
         }
         /*
           Past level... do something (or not)
@@ -175,14 +87,15 @@ void loop() {
           to just stop and call it leveled
         */
       }  
-      else if( level == R_AXIS ) {
-        motorLogic(readings.x);
+      else if( currAxis == R_AXIS ) {
+        motorLogic(readings.x, readings);
       }
-      else if ( level == LEVELED ) {
+      else if ( currAxis == LEVELED ) {
       /*  Need a for loop to take the first two characters of the string and determine what they are
           Commands are also separated by a space, += 3 gets the next character, the space, and moves
           to the beginning of the next command -- same reason for (i < length - 2)
       //*/
+      String comStr = getRadioData();
       for(int i = 0; i < (comStr.length() - 2); i += 3) {
         String curCommand = comStr.substring(i,i+1);
           if(curCommand.equalsIgnoreCase("A1")) {
@@ -227,11 +140,15 @@ void loop() {
   }
 }
 
+String getRadioData(){
+  return "";
+}
+
 void motorWrite(bool dir, int speed) {
-  switch(level) {
+  switch(currAxis) {
     case NONE:
-      digitalWrite(mainP1, 0);
-      digitalWrite(mainP2, 0);
+      digitalWrite(mainDir1, 0);
+      digitalWrite(mainDir2, 0);
       analogWrite(mainPWM, 0);
       telescopeServo.write(0);
       tiltServo.write(90);
@@ -239,8 +156,8 @@ void motorWrite(bool dir, int speed) {
       break; 
 
     case MAIN:
-      digitalWrite(mainP1, dir);
-      digitalWrite(mainP2, !dir);
+      digitalWrite(mainDir1, dir);
+      digitalWrite(mainDir2, !dir);
       analogWrite(mainPWM, speed);
       break;
 
@@ -260,20 +177,22 @@ void motorWrite(bool dir, int speed) {
 
     default:
       // Turning off all the pins
-      digitalWrite(mainP1, 0);
-      digitalWrite(mainP2, 0);
+      digitalWrite(mainDir1, 0);
+      digitalWrite(mainDir2, 0);
       analogWrite(mainPWM, 0);
 
       digitalWrite(tiltPin, 0);
-      digitalWrite(rotationPin, 0);
+      digitalWrite(swivelPin, 0);
       break;
   }
 }
 
-void motorLogic(float axis) {
-  float runVal = (axis * smoothVal) + (runVal * (1-smoothVal));
+void motorLogic(float sensorVal, sensorReadings readings) {
+  static float runVal = 0;
+  static int tilt_pos = 0;
+  runVal = (sensorVal* MOTOR_SMOOTHING) + (runVal * (1-MOTOR_SMOOTHING));
 
-  switch(level) {
+  switch(currAxis) {
     case NONE:
       // Do nothing 
       break;
@@ -297,7 +216,7 @@ void motorLogic(float axis) {
       }
       
       if (readings.z < MAIN_EPSILON) {
-        level = TELESCOPE;
+        currAxis = TELESCOPE;
       }
 
       break;
@@ -307,7 +226,7 @@ void motorLogic(float axis) {
         telescopeServo.write(i);
         delay(25);
       }
-      level = R_AXIS;
+      currAxis = R_AXIS;
       
       break;
 
@@ -323,7 +242,7 @@ void motorLogic(float axis) {
         }
       }
       else if( abs(readings.y) < TILT_EPSILON ) { 
-        level = LEVELED;
+        currAxis = LEVELED;
       }
 
       break;
@@ -337,9 +256,11 @@ void motorLogic(float axis) {
   }
 }
 
-bool impulseDetection(int T) {
+bool impulseDetection(int thresh, sensorReadings readings, int queueSum) {
+  static bool prevLaunchSign = false;
+  static int stateCounter = 0;
   // Transition between ON_PAD and IN_AIR
-  if( (rocket_state == ON_PAD) && (abs(curSum) > T) ) {
+  if( (rocket_state == ON_PAD) && (abs(queueSum) > thresh) ) {
 
     if(prevLaunchSign == (readings.y > 0)) {
       stateCounter++;
@@ -350,7 +271,7 @@ bool impulseDetection(int T) {
         stateCounter = 0;
         return true;
       }
-      return true;
+      return false;
     }
     else { 
       stateCounter = 0; 
@@ -361,7 +282,7 @@ bool impulseDetection(int T) {
 
   }
   // Transition between IN_AIR and LANDED
-  else if( (rocket_state == IN_AIR) && (abs(curSum) < T) ) {
+  else if( (rocket_state == IN_AIR) && (abs(queueSum) < thresh) ) {
     // Counter to make sure there is no movement:
     stateCounter++;
     if( stateCounter >= (1000 / SAMPLE_PERIOD) ) {
@@ -375,32 +296,36 @@ bool impulseDetection(int T) {
 
   }
   // Is a LANDED case needed? 
-  else {
+  else if(rocket_state == LANDED){
     stateCounter = 0;
     return false;
   }
-  
+  return false;
 }
 
-void queueLogic(float next_value) {
-  float difference = abs(next_value - previous_value);
+int queueLogic(float nextValue) {
+  static int previousValue = 0;
+  static int currSum = 0;
+  float difference = abs(nextValue - previousValue);
   float head = data.dequeue();
 
   // Setting the current running average to 
-  curSum = curSum + difference - head;
-  previous_value = next_value;
+  currSum = currSum + difference - head;
+  previousValue = nextValue;
 
   // Putting the new reading on the queue
   data.enqueue(difference);
+  return currSum;
 }
 
-float normalize() {
-  float normalizedValue = sqrt(sq(readings.x) + sq(readings.y) + sq(readings.z));
-  return normalizedValue;
+float mag(sensorReadings readings) {
+  float magnitude = sqrt(sq(readings.x) + sq(readings.y) + sq(readings.z));
+  return magnitude;
 }
 
 //TODO: check state changes 
 bool rotationProtection(float axis) {  
+  static int state = 1;
   switch(state) {
     case 1: /**  @ Initial Angle  **/
       // Next state (at vertical)
