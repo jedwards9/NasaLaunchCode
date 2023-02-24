@@ -16,13 +16,15 @@ void setup() {
   pinMode(mainDir2, OUTPUT);
   pinMode(button1, INPUT_PULLUP);
   pinMode(button2, INPUT_PULLUP);
+  pinMode(LED_BUILTIN, OUTPUT);
 
   // RTC setup 
+  uRTCLib rtc(0x68);
   URTCLIB_WIRE.begin();
 
   // MPU setup 
   Serial.begin(115200);
-  if (!mpu.begin()) {
+  if (!mpu.begin(0x69)) {
     Serial.println("Failed to find MPU6050 chip");
     while (1) {
       delay(10);
@@ -44,7 +46,7 @@ void setup() {
 
   // Initializing queue with 0s
   for(int i = 0; i < MAX_QUEUE_SIZE; i++) {
-    data.enqueue(0);
+    data.enqueue(sensorReadings{0,0,0});
   }
 
   // Variable initialization 
@@ -54,33 +56,47 @@ void setup() {
 }
 
 void loop() {
+  static sensorReadings prevReadings;
+  static sensorReadings deltaReadings;
+  static sensorReadings readings = {0,0,0};
   delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
-  sensorReadings readings = { a.acceleration.x, a.acceleration.y, a.acceleration.z };
-  float magnitude = mag(readings);
-  int queueSum = queueLogic(magnitude);
+  //prevReadings = readings;
+  readings = { a.acceleration.x, a.acceleration.y, a.acceleration.z };
+  if(rocket_state == IN_AIR){
+    readings.y = abs(readings.y);
+  }
+  //deltaReadings = {readings.x - prevReadings.x, readings.y - prevReadings.y, readings.z - prevReadings.z};
+  sensorReadings queueSum = queueLogic(readings);
+
 
   switch(rocket_state) {
     case ON_PAD:
+      //blink LED to indicate on the pad
+      digitalWrite(LED_BUILTIN, millis() % 500 < 250);
       // Waiting for takeoff
-      if( impulseDetection(LAUNCH_THRESH, readings, queueSum) ) {
+      if( impulseDetection(LAUNCH_THRESH, readings, queueSum.y) ) {
         rocket_state = IN_AIR;
+        //wait until after apogee
+        delay(LAUNCH_DEAD_TIME);
       }
       // Else: do nothing
       break;
     case IN_AIR:
+      digitalWrite(LED_BUILTIN, LOW);
       // Wait for landing 
-      if( impulseDetection(LANDING_THRESH, readings, queueSum) ) {
+      if( impulseDetection(LANDING_THRESH, readings, queueSum.y) ) {
         rocket_state = LANDED;
         initial_angle = readings.z;
       }
       break;
     case LANDED:
+      digitalWrite(LED_BUILTIN, HIGH);
       // Level axes
       if ( currAxis == NONE ) {
         // Wait for no movement
-        impulseDetection(LANDING_THRESH, readings, queueSum);
+        impulseDetection(LANDING_THRESH, readings, mag(queueSum));
       }
       else if( currAxis == MAIN)  {
         if(rotationProtection) {
@@ -262,66 +278,46 @@ void motorLogic(float sensorVal, sensorReadings readings) {
   }
 }
 
-bool impulseDetection(int thresh, sensorReadings readings, int queueSum) {
+bool impulseDetection(int thresh, sensorReadings readings, float queueSum) {
   static bool prevLaunchSign = false;
   static int stateCounter = 0;
+  Serial.println(queueSum / MAX_QUEUE_SIZE);
   // Transition between ON_PAD and IN_AIR
-  if( (rocket_state == ON_PAD) && (abs(queueSum) > thresh) ) {
-
-    if(prevLaunchSign == (readings.y > 0)) {
-      stateCounter++;
-      prevLaunchSign = (readings.y > 0);
-
-      if( stateCounter >= (1000 / SAMPLE_PERIOD) ) {
-        // If no movement for 1 second: 
-        stateCounter = 0;
-        return true;
-      }
-      return false;
-    }
-    else { 
-      stateCounter = 0; 
-      prevLaunchSign = (readings.y > 0);
-      return false;
-    }
-
-
+  if( (rocket_state == ON_PAD) && (queueSum > thresh) ) {
+    return true;
   }
   // Transition between IN_AIR and LANDED
-  else if( (rocket_state == IN_AIR) && (abs(queueSum) < thresh) ) {
-    // Counter to make sure there is no movement:
-    stateCounter++;
-    if( stateCounter >= (1000 / SAMPLE_PERIOD) ) {
-      // If no movement for 1 second: 
-      stateCounter = 0;
-      return true;
-    }
-    else {
-      return false;
-    }
-
-  }
-  // Is a LANDED case needed? 
-  else if(rocket_state == LANDED){
-    stateCounter = 0;
-    return false;
+  else if( (rocket_state == IN_AIR) && (queueSum < thresh) ) {
+    return true;
   }
   return false;
 }
 
-int queueLogic(float nextValue) {
-  static int previousValue = 0;
-  static int currSum = 0;
-  float difference = abs(nextValue - previousValue);
-  float head = data.dequeue();
-
-  // Setting the current running average to 
-  currSum = currSum + difference - head;
-  previousValue = nextValue;
-
-  // Putting the new reading on the queue
-  data.enqueue(difference);
+sensorReadings queueLogic(sensorReadings currVal) {
+  static sensorReadings currSum = {0, 0, 0};
+  currSum = addReadings(currSum, currVal);
+  sensorReadings head = {0, 0, 0};
+  if(data.isFull()){
+    head = data.dequeue();
+  }
+  currSum = subReadings(currSum, head);
+  data.enqueue(currVal);
   return currSum;
+}
+
+sensorReadings addReadings(sensorReadings A, sensorReadings B){
+  sensorReadings result = {A.x + B.x, A.y + B.y, A.z + B.z};
+  return result;  
+}
+
+sensorReadings subReadings(sensorReadings A, sensorReadings B){
+  sensorReadings result = {A.x - B.x, A.y - B.y, A.z - B.z};
+  return result;  
+}
+
+sensorReadings absReadings(sensorReadings A){
+  sensorReadings result = {abs(A.x), abs(A.y), abs(A.z)};
+  return result;
 }
 
 float mag(sensorReadings readings) {
@@ -403,15 +399,3 @@ void cameraCommands(int camera_command) {
   Serial.print(rtc.second());
   
 }
-
-
-
-
-
-
-
-
-
-
-
-
