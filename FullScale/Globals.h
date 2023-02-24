@@ -1,6 +1,6 @@
 /**  Pin Definitions  **/
-const int telescopePin = 7;
-const int swivelPin = 8;
+const int telescopePin = 6;
+const int swivelPin = 5;
 const int tiltPin = 9;
 const int mainPWM = 10;
 const int button2 = 11;

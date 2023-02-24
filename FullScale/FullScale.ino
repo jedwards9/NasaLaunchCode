@@ -8,8 +8,14 @@
 #include "Globals.h";
 
 void setup() {
-  pinMode(11, INPUT_PULLUP);
-  pinMode(12, INPUT_PULLUP);
+  pinMode(telescopePin, OUTPUT);
+  pinMode(swivelPin, OUTPUT);
+  pinMode(tiltPin, OUTPUT);
+  pinMode(mainPWM, OUTPUT);
+  pinMode(mainDir1, OUTPUT);
+  pinMode(mainDir2, OUTPUT);
+  pinMode(button1, INPUT_PULLUP);
+  pinMode(button2, INPUT_PULLUP);
 
   // RTC setup 
   URTCLIB_WIRE.begin();
