@@ -1,0 +1,57 @@
+#include "uRTCLib.h"
+#include "Arduino.h"
+
+uRTCLib rtc(0x68);
+
+int pictureCommand = 0;
+String message;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200); 
+  URTCLIB_WIRE.begin();
+  pictureCommand = 0;
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  if(pictureCommand == 5){
+    rtc.refresh();
+    
+    message = "1 Date_";
+    message += rtc.month();
+    message += "-";
+    message += rtc.day();
+    message += "-";
+    message += rtc.year();
+    message += " Time_ ";
+    message += rtc.hour();
+    message += ";";
+    message += rtc.minute();
+    message += ";";
+    message += rtc.second();
+
+    Serial.print(message);
+    // Serial.print(1);
+    // Serial.print(" ");
+  
+    // Serial.print(rtc.month());
+    // Serial.print('_');
+    // Serial.print(rtc.day());
+    // Serial.print('_');
+    // Serial.print(rtc.year());
+    // Serial.print()
+
+    // Serial.print(rtc.hour());
+    // Serial.print('_');
+    // Serial.print(rtc.minute());
+    // Serial.print('_');
+    // Serial.print(rtc.second());
+    //Serial.print(message);
+
+
+  }
+  delay(500);
+  pictureCommand = pictureCommand + 1;
+}
