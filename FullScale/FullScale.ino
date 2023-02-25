@@ -8,6 +8,7 @@
 #include "Globals.h";
 
 void setup() {
+  delay(5000);
   pinMode(telescopePin, OUTPUT);
   pinMode(swivelPin, OUTPUT);
   pinMode(tiltPin, OUTPUT);
@@ -272,6 +273,10 @@ void motorLogic(float sensorVal, sensorReadings readings) {
       else if( abs(readings.y) < TILT_EPSILON ) { 
         currAxis = LEVELED;
         Serial.println("Done leveling");
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(3000);
+        takePicture();
+        delay(3000);
       }
 
       break;
@@ -405,4 +410,23 @@ void cameraCommands(int camera_command) {
   Serial.print(':');
   Serial.print(rtc.second());
   
+}
+
+void takePicture(){
+  rtc.refresh();
+    
+    String message = "1 PICTURE Date_";
+    message += rtc.month();
+    message += "-";
+    message += rtc.day();
+    message += "-";
+    message += rtc.year();
+    message += " Time_ ";
+    message += rtc.hour();
+    message += ";";
+    message += rtc.minute();
+    message += ";";
+    message += rtc.second();
+
+    Serial.println(message);
 }
