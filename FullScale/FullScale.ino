@@ -17,6 +17,7 @@ void setup() {
   pinMode(button1, INPUT_PULLUP);
   pinMode(button2, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(10, INPUT); //Library Conflict Fix!!!
 
   // RTC setup 
   uRTCLib rtc(0x68);
@@ -39,10 +40,12 @@ void setup() {
   // Initializing servo pins
   tiltServo.attach(tiltPin);
   rotationServo.attach(swivelPin);
+  telescopeServo.attach(telescopePin);
 
   // Setting servos initially to off
-  tiltServo.write(90);
+  tiltServo.write(75);
   rotationServo.write(90);
+  telescopeServo.write(0);
 
   // Initializing queue with 0s
   for(int i = 0; i < MAX_QUEUE_SIZE; i++) {
@@ -51,7 +54,7 @@ void setup() {
 
   // Variable initialization 
   rocket_state = ON_PAD;    // Stage counter 
-  currAxis = NONE;               // Axis being leveled
+  currAxis = MAIN;               // Axis being leveled
   initial_angle = 0.0;                  // Starting position of camera upon landing
 }
 
@@ -94,20 +97,25 @@ void loop() {
     case LANDED:
       digitalWrite(LED_BUILTIN, HIGH);
       // Level axes
-      if ( currAxis == NONE ) {
-        // Wait for no movement
-        impulseDetection(LANDING_THRESH, readings, mag(queueSum));
-      }
-      else if( currAxis == MAIN)  {
+      // if ( currAxis == NONE ) {
+      //   // Wait for no movement
+      //   impulseDetection(LANDING_THRESH, readings, mag(queueSum));
+      // }
+      if( currAxis == MAIN)  {
         if(rotationProtection) {
           // Begin leveling
-          motorLogic(readings.z, readings);
+          motorLogic(readings.x, readings);
         }
         /*
           Past level... do something (or not)
           If we do nothing, it might be close enough to level 
           to just stop and call it leveled
         */
+      }
+      else if( currAxis == TELESCOPE){
+          Serial.println("Telescope");
+          motorLogic(readings.x, readings); //Doesn't Matter the Inputs I dont think.
+          currAxis = R_AXIS;
       }  
       else if( currAxis == R_AXIS ) {
         motorLogic(readings.x, readings);
@@ -173,7 +181,7 @@ void motorWrite(bool dir, int speed) {
       digitalWrite(mainDir2, 0);
       analogWrite(mainPWM, 0);
       telescopeServo.write(0);
-      tiltServo.write(90);
+      //tiltServo.write(90);
       rotationServo.write(90);
       break; 
 
@@ -185,16 +193,6 @@ void motorWrite(bool dir, int speed) {
 
     case LEVELED:
       // Camera head movement
-      if( dir ) {
-        tiltServo.write(speed);
-        delay(DELAY_60o);
-        tiltServo.write(90);
-      }
-      else if( !dir ) {
-        tiltServo.write(90 + speed);
-        delay (DELAY_60o);
-        tiltServo.write(90);
-      }
       break;
 
     default:
@@ -211,8 +209,11 @@ void motorWrite(bool dir, int speed) {
 
 void motorLogic(float sensorVal, sensorReadings readings) {
   static float runVal = 0;
-  static int tilt_pos = 0;
+  static int tilt_pos = 90;
   runVal = (sensorVal* MOTOR_SMOOTHING) + (runVal * (1-MOTOR_SMOOTHING));
+  if(abs(runVal) < MIN_ROTATION_SPEED){
+    runVal = (runVal / abs(runVal)) * MIN_ROTATION_SPEED;
+  }
 
   switch(currAxis) {
     case NONE:
@@ -220,33 +221,37 @@ void motorLogic(float sensorVal, sensorReadings readings) {
       break;
 
     case MAIN:
-      if(readings.z < 0 || runVal > ROTATION_SPEED){
+      if(readings.z < 0 || runVal > MAX_ROTATION_SPEED){
         if(runVal > 0){
-          runVal = ROTATION_SPEED;
+          runVal = MAX_ROTATION_SPEED;
         }
         else{
-          runVal = -ROTATION_SPEED;
+          runVal = -MAX_ROTATION_SPEED;
         }
       }
 
-      if( abs(runVal) > INITIAL_THRESH ) {
+      if( abs(sensorVal) > INITIAL_THRESH ) {
         //motorWrite( runVal < 0, 20*abs(runVal) );
-        motorWrite( runVal < 0, ROTATION_SPEED );
+        motorWrite( runVal < 0, abs(runVal));
       }
       else {
+        Serial.println("TELESCOPE");
         motorWrite(false, 0);
-      }
-      
-      if (readings.z < MAIN_EPSILON) {
         currAxis = TELESCOPE;
       }
+      
+      // if (readings.z < MAIN_EPSILON) {
+      //   Serial.println("Telescope");
+      //   currAxis = TELESCOPE;
+      // }
 
       break;
     
     case TELESCOPE:
+      Serial.println("Telescope");
       for (int i = 0; i <= 180; i += 1) {
         telescopeServo.write(i);
-        delay(25);
+        delay(20);
       }
       currAxis = R_AXIS;
       
@@ -256,15 +261,17 @@ void motorLogic(float sensorVal, sensorReadings readings) {
       if( abs(readings.y) > TILT_EPSILON ) {
         if( readings.y - TILT_EPSILON > 0 ) {
           tilt_pos += 1;
-          delay(250);
+          delay(20);
         }
         if( readings.y - TILT_EPSILON < 0 ) {
           tilt_pos -= 1;
-          delay(250);
+          delay(20);
         }
+        tiltServo.write(tilt_pos);
       }
       else if( abs(readings.y) < TILT_EPSILON ) { 
         currAxis = LEVELED;
+        Serial.println("Done leveling");
       }
 
       break;
