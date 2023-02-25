@@ -11,7 +11,8 @@ void setup() {
   pinMode(telescopePin, OUTPUT);
   pinMode(swivelPin, OUTPUT);
   pinMode(tiltPin, OUTPUT);
-  pinMode(mainPWM, OUTPUT);
+  pinMode(10, INPUT);
+  pinMode(3, OUTPUT);
   pinMode(A0, OUTPUT);
   pinMode(A1, OUTPUT);
   pinMode(A7, INPUT);
@@ -103,14 +104,7 @@ void loop() {
       }
       if( currAxis == MAIN)  {
         Serial.println("MAIN");
-        // digitalWrite(mainDir1, 1);
-        // digitalWrite(mainDir2, 0);
-        // analogWrite(mainPWM, 5);
-        //motorLogic(readings.x, readings);
-        analogWrite(A0, 0);
-        digitalWrite(A1, HIGH);
-        analogWrite(10, 255);
-        delay(5000);
+        motorLogic(readings.x, readings);
         return;
         // if(rotationProtection(readings.x)) {
         //   // Begin leveling
@@ -184,14 +178,10 @@ String getRadioData(){
 }
 
 void motorWrite(bool dir, int speed) {
-  Serial.println("MotorWrite");
-  analogWrite(A0, 0);
-  digitalWrite(A1, HIGH);
-  analogWrite(10, 60);
-  return;
-
-
-
+  // Serial.println("MotorWrite");
+  // analogWrite(A0, 0);
+  // digitalWrite(A1, HIGH);
+  // analogWrite(3, 60);
   switch(currAxis) {
     case NONE:
       digitalWrite(A0, 0);
@@ -206,10 +196,10 @@ void motorWrite(bool dir, int speed) {
       // digitalWrite(A0, dir);
       // digitalWrite(A1, !dir);
       // analogWrite(mainPWM, speed);
-      Serial.println("HERE");
-      analogWrite(A0, 0);
-      digitalWrite(A1, HIGH);
-      analogWrite(mainPWM, 70);
+      Serial.println("MotorWrite");
+      digitalWrite(A0, !dir);
+      digitalWrite(A1, dir);
+      analogWrite(3, 60);
       return;
       break;
 
