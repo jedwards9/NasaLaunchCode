@@ -12,8 +12,9 @@ void setup() {
   pinMode(swivelPin, OUTPUT);
   pinMode(tiltPin, OUTPUT);
   pinMode(mainPWM, OUTPUT);
-  pinMode(mainDir1, OUTPUT);
-  pinMode(mainDir2, OUTPUT);
+  pinMode(A0, OUTPUT);
+  pinMode(A1, OUTPUT);
+  pinMode(A7, INPUT);
   pinMode(button1, INPUT_PULLUP);
   pinMode(button2, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
@@ -94,21 +95,37 @@ void loop() {
     case LANDED:
       digitalWrite(LED_BUILTIN, HIGH);
       // Level axes
+      currAxis = MAIN;
       if ( currAxis == NONE ) {
         // Wait for no movement
+        Serial.println("NONE");
         impulseDetection(LANDING_THRESH, readings, mag(queueSum));
       }
-      else if( currAxis == MAIN)  {
-        if(rotationProtection) {
-          // Begin leveling
-          motorLogic(readings.z, readings);
-        }
+      if( currAxis == MAIN)  {
+        Serial.println("MAIN");
+        // digitalWrite(mainDir1, 1);
+        // digitalWrite(mainDir2, 0);
+        // analogWrite(mainPWM, 5);
+        //motorLogic(readings.x, readings);
+        analogWrite(A0, 0);
+        digitalWrite(A1, HIGH);
+        analogWrite(10, 255);
+        delay(5000);
+        return;
+        // if(rotationProtection(readings.x)) {
+        //   // Begin leveling
+        //   motorLogic(readings.x, readings);
+        // }
         /*
           Past level... do something (or not)
           If we do nothing, it might be close enough to level 
           to just stop and call it leveled
         */
       }  
+      else if( currAxis = TELESCOPE){
+        Serial.println("TELESCOPE");
+        motorLogic(0.0, readings);
+      }
       else if( currAxis == R_AXIS ) {
         motorLogic(readings.x, readings);
       }
@@ -167,10 +184,18 @@ String getRadioData(){
 }
 
 void motorWrite(bool dir, int speed) {
+  Serial.println("MotorWrite");
+  analogWrite(A0, 0);
+  digitalWrite(A1, HIGH);
+  analogWrite(10, 60);
+  return;
+
+
+
   switch(currAxis) {
     case NONE:
-      digitalWrite(mainDir1, 0);
-      digitalWrite(mainDir2, 0);
+      digitalWrite(A0, 0);
+      digitalWrite(A1, 0);
       analogWrite(mainPWM, 0);
       telescopeServo.write(0);
       tiltServo.write(90);
@@ -178,9 +203,14 @@ void motorWrite(bool dir, int speed) {
       break; 
 
     case MAIN:
-      digitalWrite(mainDir1, dir);
-      digitalWrite(mainDir2, !dir);
-      analogWrite(mainPWM, speed);
+      // digitalWrite(A0, dir);
+      // digitalWrite(A1, !dir);
+      // analogWrite(mainPWM, speed);
+      Serial.println("HERE");
+      analogWrite(A0, 0);
+      digitalWrite(A1, HIGH);
+      analogWrite(mainPWM, 70);
+      return;
       break;
 
     case LEVELED:
@@ -199,8 +229,8 @@ void motorWrite(bool dir, int speed) {
 
     default:
       // Turning off all the pins
-      digitalWrite(mainDir1, 0);
-      digitalWrite(mainDir2, 0);
+      digitalWrite(A0, 0);
+      digitalWrite(A1, 0);
       analogWrite(mainPWM, 0);
 
       digitalWrite(tiltPin, 0);
@@ -228,7 +258,7 @@ void motorLogic(float sensorVal, sensorReadings readings) {
           runVal = -ROTATION_SPEED;
         }
       }
-
+      Serial.println(runVal);
       if( abs(runVal) > INITIAL_THRESH ) {
         //motorWrite( runVal < 0, 20*abs(runVal) );
         motorWrite( runVal < 0, ROTATION_SPEED );
