@@ -79,6 +79,7 @@ void loop() {
     case ON_PAD:
       //blink LED to indicate on the pad
       digitalWrite(LED_BUILTIN, millis() % 500 < 250);
+      takePicture("ON_PAD");
       // Waiting for takeoff
       if( impulseDetection(LAUNCH_THRESH, readings, queueSum.y) ) {
         rocket_state = IN_AIR;
@@ -89,6 +90,7 @@ void loop() {
       break;
     case IN_AIR:
       digitalWrite(LED_BUILTIN, LOW);
+      takePicture("IN_AIR");
       // Wait for landing 
       if( impulseDetection(LANDING_THRESH, readings, queueSum.y) ) {
         rocket_state = LANDED;
@@ -97,23 +99,15 @@ void loop() {
       break;
     case LANDED:
       digitalWrite(LED_BUILTIN, HIGH);
-      // Level axes
-      // if ( currAxis == NONE ) {
-      //   // Wait for no movement
-      //   impulseDetection(LANDING_THRESH, readings, mag(queueSum));
-      // }
+      takePicture("LANDED");
+      
       if( currAxis == MAIN)  {
         if(rotationProtection) {
           // Begin leveling
           motorLogic(readings.x, readings);
         }
-        /*
-          Past level... do something (or not)
-          If we do nothing, it might be close enough to level 
-          to just stop and call it leveled
-        */
       }
-      else if( currAxis == TELESCOPE){
+      else if( currAxis == TELESCOPE) {
           Serial.println("Telescope");
           motorLogic(readings.x, readings); //Doesn't Matter the Inputs I dont think.
           currAxis = R_AXIS;
@@ -122,49 +116,46 @@ void loop() {
         motorLogic(readings.x, readings);
       }
       else if ( currAxis == LEVELED ) {
-      /*  Need a for loop to take the first two characters of the string and determine what they are
-          Commands are also separated by a space, += 3 gets the next character, the space, and moves
-          to the beginning of the next command -- same reason for (i < length - 2)
-      //*/
-      String comStr = getRadioData();
-      for(int i = 0; i < (comStr.length() - 2); i += 3) {
-        String curCommand = comStr.substring(i,i+1);
-          if(curCommand.equalsIgnoreCase("A1")) {
-            // Motor logic?
+        String comStr = getRadioData();
+        for(int i = 0; i < (comStr.length() - 2); i += 3) {
+          String curCommand = comStr.substring(i,i+1);
+            if(curCommand.equalsIgnoreCase("A1")) {
+              // Motor logic?
+            }
+            else if(curCommand.equalsIgnoreCase("B2")) {
+              
+            }
+            else if(curCommand.equalsIgnoreCase("C3")) {
+              // Take picture
+              cameraCommands(TAKE_PICTURE);
+            }
+            else if(curCommand.equalsIgnoreCase("D4")) {
+              // Change camera mode from color to grayscale
+              cameraCommands(TO_GRAY);
+            }
+            else if(curCommand.equalsIgnoreCase("E5")) {
+              // Change camera mode from grayscale to color
+              cameraCommands(TO_COLOR);
+            }
+            else if(curCommand.equalsIgnoreCase("F6")) {
+              // Rotate image 180o
+              cameraCommands(FLIP_180);
+            }
+            else if(curCommand.equalsIgnoreCase("G7")) {
+              // Apply special filter
+              cameraCommands(APPLY_SPECIAL);
+            }
+            else if(curCommand.equalsIgnoreCase("H8")) {
+              // Remove all filters
+              cameraCommands(REMOVE_FILTER);
+            }
+            else {
+              // Panic
+            }
           }
-          else if(curCommand.equalsIgnoreCase("B2")) {
-            
-          }
-          else if(curCommand.equalsIgnoreCase("C3")) {
-            // Take picture
-            cameraCommands(TAKE_PICTURE);
-          }
-          else if(curCommand.equalsIgnoreCase("D4")) {
-            // Change camera mode from color to grayscale
-            cameraCommands(TO_GRAY);
-          }
-          else if(curCommand.equalsIgnoreCase("E5")) {
-            // Change camera mode from grayscale to color
-            cameraCommands(TO_COLOR);
-          }
-          else if(curCommand.equalsIgnoreCase("F6")) {
-            // Rotate image 180o
-            cameraCommands(FLIP_180);
-          }
-          else if(curCommand.equalsIgnoreCase("G7")) {
-            // Apply special filter
-            cameraCommands(APPLY_SPECIAL);
-          }
-          else if(curCommand.equalsIgnoreCase("H8")) {
-            // Remove all filters
-            cameraCommands(REMOVE_FILTER);
-          }
-          else {
-            // Panic
-          }
-        }
       }
       break;
+
     default:
       // Throw error or do nothing? 
       break;
@@ -250,10 +241,10 @@ void motorLogic(float sensorVal, sensorReadings readings) {
     
     case TELESCOPE:
       Serial.println("Telescope");
-      for (int i = 0; i <= 180; i += 1) {
-        telescopeServo.write(i);
-        delay(20);
-      }
+      // for (int i = 0; i <= 180; i += 1) {
+      //   telescopeServo.write(i);
+      //   delay(20);
+      // }
       currAxis = R_AXIS;
       
       break;
@@ -278,11 +269,10 @@ void motorLogic(float sensorVal, sensorReadings readings) {
         takePicture();
         delay(3000);
       }
-
       break;
 
     case LEVELED:
-
+      takePicture("LEVELED");
       break;
 
     default:
@@ -412,21 +402,45 @@ void cameraCommands(int camera_command) {
   
 }
 
-void takePicture(){
-  rtc.refresh();
+// void takePicture(){
+//   rtc.refresh();
     
-    String message = "1 PICTURE Date_";
-    message += rtc.month();
-    message += "-";
-    message += rtc.day();
-    message += "-";
-    message += rtc.year();
-    message += " Time_ ";
-    message += rtc.hour();
-    message += ";";
-    message += rtc.minute();
-    message += ";";
-    message += rtc.second();
+//     String message = "1 PICTURE Date_";
+//     message += rtc.month();
+//     message += "-";
+//     message += rtc.day();
+//     message += "-";
+//     message += rtc.year();
+//     message += " Time_ ";
+//     message += rtc.hour();
+//     message += ";";
+//     message += rtc.minute();
+//     message += ";";
+//     message += rtc.second();
 
-    Serial.println(message);
+//     Serial.println(message);
+// }
+
+void takePicture(String text = ""){
+  rtc.refresh();
+  
+  String message = "1 PICTURE Date_";
+
+  if (text != "") {
+    message = text + message;
+  }
+  
+  message += rtc.month();
+  message += "-";
+  message += rtc.day();
+  message += "-";
+  message += rtc.year();
+  message += " Time_ ";
+  message += rtc.hour();
+  message += ";";
+  message += rtc.minute();
+  message += ";";
+  message += rtc.second();
+
+  Serial.println(message);
 }
