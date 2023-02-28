@@ -261,11 +261,11 @@ void motorLogic(float sensorVal, sensorReadings readings) {
     case R_AXIS:
       if( abs(readings.y) > TILT_EPSILON ) {
         if( readings.y - TILT_EPSILON > 0 ) {
-          tilt_pos += 1;
+          tilt_pos -= 1;
           delay(20);
         }
         if( readings.y - TILT_EPSILON < 0 ) {
-          tilt_pos -= 1;
+          tilt_pos += 1;
           delay(20);
         }
         tiltServo.write(tilt_pos);
