@@ -55,7 +55,7 @@ void setup() {
 
   // Variable initialization 
   rocket_state = ON_PAD;    // Stage counter 
-  currAxis = MAIN;               // Axis being leveled
+  currAxis = LEVELED;               // Axis being leveled
   initial_angle = 0.0;                  // Starting position of camera upon landing
 }
 
@@ -229,7 +229,7 @@ void motorLogic(float sensorVal, sensorReadings readings) {
       else {
         Serial.println("TELESCOPE");
         motorWrite(false, 0);
-        currAxis = TELESCOPE;
+        currAxis = LEVELED;
       }
       
       // if (readings.z < MAIN_EPSILON) {
@@ -245,7 +245,7 @@ void motorLogic(float sensorVal, sensorReadings readings) {
       //   telescopeServo.write(i);
       //   delay(20);
       // }
-      currAxis = R_AXIS;
+      //currAxis = R_AXIS;
       
       break;
 
