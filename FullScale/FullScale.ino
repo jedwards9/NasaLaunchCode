@@ -18,7 +18,9 @@ void setup() {
   pinMode(button1, INPUT_PULLUP);
   pinMode(button2, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(10, INPUT); //Library Conflict Fix!!!
+  pinMode(airbagDeploy, OUTPUT);
+
+  digitalWrite(airbagDeploy, LOW);
 
   // RTC setup 
   uRTCLib rtc(0x68);
@@ -82,12 +84,19 @@ void loop() {
       // Waiting for takeoff
       if( impulseDetection(LAUNCH_THRESH, readings, queueSum.y) ) {
         rocket_state = IN_AIR;
+        launchTime = millis();
         //wait until after apogee
         delay(LAUNCH_DEAD_TIME);
       }
       // Else: do nothing
       break;
+
+
     case IN_AIR:
+      //check if secondary needs deployed yet
+      if(millis() - launchTime > AIRBAG_DELAY_TIME){
+        digitalWrite(airbagDeploy, HIGH);
+      }
       digitalWrite(LED_BUILTIN, LOW);
       // Wait for landing 
       if( impulseDetection(LANDING_THRESH, readings, queueSum.y) ) {
@@ -95,8 +104,11 @@ void loop() {
         initial_angle = readings.z;
       }
       break;
+
+
     case LANDED:
       digitalWrite(LED_BUILTIN, HIGH);
+      digitalWrite(airbagDeploy, LOW);
       // Level axes
       // if ( currAxis == NONE ) {
       //   // Wait for no movement
