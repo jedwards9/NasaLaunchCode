@@ -20,7 +20,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(airbagDeploy, OUTPUT);
 
-  digitalWrite(airbagDeploy, LOW);
+  digitalWrite(airbagDeploy, HIGH);
 
   // RTC setup 
   uRTCLib rtc(0x68);
@@ -95,7 +95,7 @@ void loop() {
     case IN_AIR:
       //check if secondary needs deployed yet
       if(millis() - launchTime > AIRBAG_DELAY_TIME){
-        digitalWrite(airbagDeploy, HIGH);
+        digitalWrite(airbagDeploy, LOW);
       }
       digitalWrite(LED_BUILTIN, LOW);
       // Wait for landing 
@@ -108,7 +108,7 @@ void loop() {
 
     case LANDED:
       digitalWrite(LED_BUILTIN, HIGH);
-      digitalWrite(airbagDeploy, LOW);
+      digitalWrite(airbagDeploy, HIGH);
       // Level axes
       // if ( currAxis == NONE ) {
       //   // Wait for no movement

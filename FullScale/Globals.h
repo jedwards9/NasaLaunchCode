@@ -7,7 +7,7 @@ const int button2 = 11;
 const int button1 = 12;
 const int mainDir2 = A0;
 const int mainDir1 = A1;
-const int airbagDeploy = 10;
+const int airbagDeploy = 8;
 
 /** Hardware declarations **/
 Adafruit_MPU6050 mpu;
