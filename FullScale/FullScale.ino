@@ -56,9 +56,10 @@ void setup() {
   }
 
   // Variable initialization 
-  rocket_state = ON_PAD;    // Stage counter 
-  currAxis = MAIN;               // Axis being leveled
-  initial_angle = 0.0;                  // Starting position of camera upon landing
+  rocket_state = ON_PAD;          // Stage counter 
+  currAxis = MAIN;                // Axis being leveled
+  initial_angle = 0.0;            // Starting position of camera upon landing
+  moveCamera = false; 
 }
 
 void loop() {
@@ -142,10 +143,14 @@ void loop() {
       for(int i = 0; i < (comStr.length() - 2); i += 3) {
         String curCommand = comStr.substring(i,i+1);
           if(curCommand.equalsIgnoreCase("A1")) {
-            // Motor logic?
+            // Right 60o
+            moveCamera = true;
+            motorWrite(1, 0);
           }
           else if(curCommand.equalsIgnoreCase("B2")) {
-            
+            // Left 60o
+            moveCamera = true;
+            motorWrite(0, 0);
           }
           else if(curCommand.equalsIgnoreCase("C3")) {
             // Take picture
@@ -194,7 +199,7 @@ void motorWrite(bool dir, int speed) {
       digitalWrite(mainDir2, 0);
       analogWrite(mainPWM, 0);
       telescopeServo.write(0);
-      //tiltServo.write(90);
+      tiltServo.write(90);
       rotationServo.write(90);
       break; 
 
@@ -206,6 +211,17 @@ void motorWrite(bool dir, int speed) {
 
     case LEVELED:
       // Camera head movement
+      if(moveCamera) {
+        if(dir) { // Right
+          rotationServo.write(60);
+          delay(DELAY_60deg);
+        }
+        else {    // Left
+          rotationServo.write(120);
+          delay(DELAY_60deg);
+        }
+        rotationServo.write(90);
+      }
       break;
 
     default:
@@ -224,7 +240,7 @@ void motorLogic(float sensorVal, sensorReadings readings) {
   static float runVal = 0;
   static int tilt_pos = 90;
   runVal = (sensorVal* MOTOR_SMOOTHING) + (runVal * (1-MOTOR_SMOOTHING));
-  if(abs(runVal) < MIN_ROTATION_SPEED){
+  if(abs(runVal) < MIN_ROTATION_SPEED) {
     runVal = (runVal / abs(runVal)) * MIN_ROTATION_SPEED;
   }
 
