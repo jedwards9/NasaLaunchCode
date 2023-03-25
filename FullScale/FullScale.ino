@@ -222,6 +222,7 @@ void motorWrite(bool dir, int speed) {
         }
         rotationServo.write(90);
       }
+      moveCamera = false;
       break;
 
     default:
