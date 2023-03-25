@@ -41,7 +41,7 @@ const int MAX_QUEUE_SIZE = 25;
 const int MAX_ANGLE = 10;
 const int TILT_SERVO_SPEED = 45;
 const float MOTOR_SMOOTHING = 0.8;
-//const int DELAY_60o = 500;
+const int DELAY_60deg = 500;
 const int LAUNCH_DEAD_TIME = 5000;
 const unsigned int AIRBAG_DELAY_TIME = 60000;
 
@@ -71,3 +71,4 @@ levelAxis currAxis;
 ArduinoQueue<sensorReadings> data(MAX_QUEUE_SIZE);
 unsigned long launchTime;
 float initial_angle;    // Loop -- IN_AIR
+bool moveCamera;
