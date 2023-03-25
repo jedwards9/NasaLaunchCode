@@ -189,7 +189,7 @@ void loop() {
 }
 
 String getRadioData(){
-  return "";
+  return "A1C3B2C3F6D3";
 }
 
 void motorWrite(bool dir, int speed) {
