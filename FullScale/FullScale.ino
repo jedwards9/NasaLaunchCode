@@ -408,37 +408,24 @@ bool rotationProtection(float axis) {
 }
 
 void cameraCommands(int camera_command) {
-  /*
-    const int TAKE_PICTURE = 1;
-    const int TO_GRAY = 2;
-    const int TO_COLOR = 3;
-    const int APPLY_SPECIAL = 4;
-    const int REMOVE_FILTER = 5;
-    const int FLIP_180 = 6;
-  */  
-  if(camera_command > 6) {
-    // Not a camera command ...
-    // just return? or throw error? 
-    return;
+  Serial.println("Debug 6");
+  delay(picDelay);
+  switch(camera_command) {
+    case 1:
+      takePicture();
+      break;
+    case 2: // Gray
+    case 3: // Color
+    case 4: // Special
+    case 5: // Remove Special
+    case 6: // Flip 
+      String message = String(camera_command) + " PICTURE ------------- ";
+      Serial.println(message);
+      break;
+    default:
+      // Command shouldn't be greater than 6
+      break;
   }
-  
-  rtc.refresh();
-
-  Serial.print(camera_command);
-  Serial.print(" ");
-  // delay(2000)
-  Serial.print(rtc.month());
-  Serial.print('/');
-  Serial.print(rtc.day());
-  Serial.print('/');
-  Serial.print(rtc.year());
-
-  Serial.print(rtc.hour());
-  Serial.print(':');
-  Serial.print(rtc.minute());
-  Serial.print(':');
-  Serial.print(rtc.second());
-  
 }
 
 void takePicture(){

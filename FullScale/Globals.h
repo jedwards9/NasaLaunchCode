@@ -41,6 +41,7 @@ const int MAX_QUEUE_SIZE = 25;
 const int MAX_ANGLE = 10;
 const int TILT_SERVO_SPEED = 45;
 const float MOTOR_SMOOTHING = 0.8;
+const int ESP_DELAY = 1000;
 const int DELAY_60deg = 500;
 const int LAUNCH_DEAD_TIME = 5000;
 const unsigned int AIRBAG_DELAY_TIME = 60000;
