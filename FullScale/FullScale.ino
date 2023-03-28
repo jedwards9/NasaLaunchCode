@@ -65,6 +65,7 @@ void setup() {
 }
 
 void loop() {
+  static numReadings = 0;
   static sensorReadings readings = {0,0,0};
   delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
@@ -74,7 +75,12 @@ void loop() {
     readings.y = abs(readings.y);
   }
   sensorReadings queueSum = queueLogic(readings);
-
+  numReadings += 1;
+  
+  // Limiting the number of readings being saved
+  if(numReadings % 2 = 0) {
+    writeToFile(readings);
+  }
 
   switch(rocket_state) {
     case ON_PAD:
