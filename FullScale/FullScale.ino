@@ -13,14 +13,12 @@ void setup() {
   pinMode(swivelPin, OUTPUT);
   pinMode(tiltPin, OUTPUT);
   pinMode(mainPWM, OUTPUT);
-//  pinMode(mainDir1, OUTPUT);
- // pinMode(mainDir2, OUTPUT);
   pinMode(button1, INPUT_PULLUP);
   pinMode(button2, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(airbagDeploy, OUTPUT);
-  pinMode(debug2, OUTPUT);
-  pinMode(debug3, OUTPUT);
+  pinMode(debugRed, OUTPUT);
+  pinMode(debugYellow, OUTPUT);
 
   digitalWrite(airbagDeploy, HIGH);
 
@@ -62,132 +60,125 @@ void setup() {
   // Variable initialization 
   rocket_state = ON_PAD;          // Stage counter 
   currAxis = MAIN;                // Axis being leveled
-  initial_angle = 0.0;            // Starting position of camera upon landing
-  moveCamera = false; 
+  moveCamera = false;
+  landingCounter = 0; 
 }
 
 void loop() {
-  static sensorReadings prevReadings;
-  static sensorReadings deltaReadings;
   static sensorReadings readings = {0,0,0};
   delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
-  //prevReadings = readings;
   readings = { a.acceleration.x, a.acceleration.y, a.acceleration.z };
   if(rocket_state == IN_AIR){
     readings.y = abs(readings.y);
   }
-  //deltaReadings = {readings.x - prevReadings.x, readings.y - prevReadings.y, readings.z - prevReadings.z};
   sensorReadings queueSum = queueLogic(readings);
 
 
   switch(rocket_state) {
     case ON_PAD:
-      //blink LED to indicate on the pad
       Serial.println(readings.y);
-      digitalWrite(LED_BUILTIN, millis() % 500 < 250);
-      digitalWrite(debug2, HIGH);
-      digitalWrite(debug3, HIGH);
+      // Blink LEDs to indicate on the pad
+      digitalWrite(debugRed, millis() % 500 < 250);
+      digitalWrite(debugYellow, millis() % 500 < 250);
       // Waiting for takeoff
-      if(impulseDetection(LAUNCH_THRESH, readings, queueSum.y) ) {
+      if(impulseDetection(LAUNCH_THRESH, queueSum.y) ) {
         rocket_state = IN_AIR;
         launchTime = millis();
-        //wait until after apogee
+        // Launched: wait to continue detecting (30sec delay)
         delay(LAUNCH_DEAD_TIME);
       }
       // Else: do nothing
       break;
 
-
     case IN_AIR:
-      //check if secondary needs deployed yet
+      digitalWrite(debugRed, HIGH);
+      digitalWrite(debugYellow, HIGH);
+      
+      //check if secondary needs deployed yet (60sec since launch)
       if(millis() - launchTime > AIRBAG_DELAY_TIME){
         digitalWrite(airbagDeploy, LOW);
       }
-      digitalWrite(LED_BUILTIN, LOW);
-      digitalWrite(debug2, HIGH);
-      digitalWrite(debug3, LOW);
-      // Wait for landing 
-      landingCounter = 0;
       
-      while( impulseDetection(LANDING_THRESH, readings, queueSum.y) ) {
+      // Wait for landing 
+      if( impulseDetection(LANDING_THRESH, queueSum.y) ) {
         landingCounter += 1;
         Serial.println("landing");
         if( landingCounter > 25000 ) {
           rocket_state = LANDED;
         }
-        initial_angle = readings.z;
+      }
+      else { 
+        landingCounter = 0;
       }
       break;
 
-
     case LANDED:
-      digitalWrite(LED_BUILTIN, HIGH);
-      digitalWrite(debug2, LOW);
-      digitalWrite(debug3, HIGH);
+      digitalWrite(debugRed, LOW);
+      digitalWrite(debugYellow, HIGH);
       digitalWrite(airbagDeploy, HIGH);
 
       if( currAxis == MAIN)  {
-        motorLogic(readings.x, readings);
+        motorLogic(readings);
       }
-      else if( currAxis == TELESCOPE){
+      else if( currAxis == TELESCOPE) {
           Serial.println("Telescope");
-          motorLogic(readings.x, readings); //Doesn't Matter the Inputs I dont think.
+          motorLogic(readings); // The inputs don't matter I think.
           currAxis = R_AXIS;
       }  
       else if( currAxis == R_AXIS ) {
-        motorLogic(readings.x, readings);
+        motorLogic(readings);
       }
       else if ( currAxis == LEVELED ) {
-      /*  Need a for loop to take the first two characters of the string and determine what they are
-          Commands are also separated by a space, += 3 gets the next character, the space, and moves
-          to the beginning of the next command -- same reason for (i < length - 2)
-      //*/
-      String comStr = getRadioData();
-      for(int i = 0; i < (comStr.length() - 2); i += 3) {
-        String curCommand = comStr.substring(i,i+1);
-          if(curCommand.equalsIgnoreCase("A1")) {
-            // Right 60o
-            rotationServo.write(60);
-            delay(DELAY_60deg);
-            rotationServo.write(90);
+        /*  Need a for loop to take the first two characters of the string and determine what they are
+            Commands are also separated by a space, += 3 gets the next character, the space, and moves
+            to the beginning of the next command -- same reason for (i < length - 2)
+        //*/
+        String comStr = getRadioData();
+        for(int i = 0; i < (comStr.length() - 2); i += 3) {
+          String curCommand = comStr.substring(i,i+1);
+            if(curCommand.equalsIgnoreCase("A1")) {
+              // Right 60o
+              rotationServo.write(60);
+              delay(DELAY_60deg);
+              rotationServo.write(90);
+            }
+            else if(curCommand.equalsIgnoreCase("B2")) {
+              // Left 60o
+              rotationServo.write(120);
+              delay(DELAY_60deg);
+              rotationServo.write(90);
+              moveCamera = false;
+            }
+            else if(curCommand.equalsIgnoreCase("C3")) {
+              // Take picture
+              cameraCommands(TAKE_PICTURE);
+            }
+            else if(curCommand.equalsIgnoreCase("D4")) {
+              // Change camera mode from color to grayscale
+              cameraCommands(TO_GRAY);
+            }
+            else if(curCommand.equalsIgnoreCase("E5")) {
+              // Change camera mode from grayscale to color
+              cameraCommands(TO_COLOR);
+            }
+            else if(curCommand.equalsIgnoreCase("F6")) {
+              // Rotate image 180o
+              cameraCommands(FLIP_180);
+            }
+            else if(curCommand.equalsIgnoreCase("G7")) {
+              // Apply special filter
+              cameraCommands(APPLY_SPECIAL);
+            }
+            else if(curCommand.equalsIgnoreCase("H8")) {
+              // Remove all filters
+              cameraCommands(REMOVE_FILTER);
+            }
+            else {
+              // Panic
+            }
           }
-          else if(curCommand.equalsIgnoreCase("B2")) {
-            // Left 60o
-            rotationServo.write(120);
-            delay(DELAY_60deg);
-            rotationServo.write(90);
-            moveCamera = false;
-          }
-          else if(curCommand.equalsIgnoreCase("C3")) {
-            // Take picture
-            cameraCommands(TAKE_PICTURE);
-          }
-          else if(curCommand.equalsIgnoreCase("D4")) {
-            // Change camera mode from color to grayscale
-            cameraCommands(TO_GRAY);
-          }
-          else if(curCommand.equalsIgnoreCase("E5")) {
-            // Change camera mode from grayscale to color
-            cameraCommands(TO_COLOR);
-          }
-          else if(curCommand.equalsIgnoreCase("F6")) {
-            // Rotate image 180o
-            cameraCommands(FLIP_180);
-          }
-          else if(curCommand.equalsIgnoreCase("G7")) {
-            // Apply special filter
-            cameraCommands(APPLY_SPECIAL);
-          }
-          else if(curCommand.equalsIgnoreCase("H8")) {
-            // Remove all filters
-            cameraCommands(REMOVE_FILTER);
-          }
-          else {
-            // Panic
-          }
-        }
       }
       break;
     default:
@@ -200,15 +191,12 @@ String getRadioData(){
   return "A1C3B2C3F6D3";
 }
 
-void motorLogic(float sensorVal, sensorReadings readings) {
+// removed float sensorVal (which was just one of the readings)
+void motorLogic(sensorReadings readings) {
   static int tilt_pos = 90;
   static int main_pos = 90;
   
   switch(currAxis) {
-    case NONE:
-      // Do nothing 
-      break;
-
     case MAIN:
       if( abs(readings.y) > MAIN_EPSILON ) {
         if( readings.y - MAIN_EPSILON > 0 ) {
@@ -225,7 +213,6 @@ void motorLogic(float sensorVal, sensorReadings readings) {
         currAxis = TELESCOPE;
         mainMotor.write(90);
         Serial.println("Done leveling");
-        // digitalWrite(LED_BUILTIN, LOW);
       }
       break;
     
@@ -253,7 +240,7 @@ void motorLogic(float sensorVal, sensorReadings readings) {
       else if( abs(readings.y) < TILT_EPSILON ) { 
         currAxis = LEVELED;
         Serial.println("Done leveling");
-        digitalWrite(LED_BUILTIN, LOW);
+        digitalWrite(LED_BUILTIN, millis() % 500 < 250);
         delay(3000);
         takePicture();
         delay(3000);
@@ -269,15 +256,13 @@ void motorLogic(float sensorVal, sensorReadings readings) {
   }
 }
 
-bool impulseDetection(int thresh, sensorReadings readings, float queueSum) {
+bool impulseDetection(int thresh, float queueSum) {
   static bool prevLaunchSign = false;
   static int stateCounter = 0;
-  //Serial.println(queueSum / MAX_QUEUE_SIZE);
-  // Transition between ON_PAD and IN_AIR
+
   if( (rocket_state == ON_PAD) && (queueSum > thresh) ) {
     return true;
   }
-  // Transition between IN_AIR and LANDED
   else if( (rocket_state == IN_AIR) && (queueSum < thresh) ) {
     return true;
   }
@@ -354,4 +339,15 @@ void takePicture(){
     message += rtc.second();
 
     Serial.println(message);
+}
+
+void writeToFile(sensorReadings readings) {
+  String message = "WRITE ";
+  message += String(readings.x) + "," + String(readings.y) + "," + String(readings.z) + '\n';
+  Serial.println(message);
+}
+
+void writeToFile(String value) {
+  String message = "WRITE ";
+  message += value;
 }

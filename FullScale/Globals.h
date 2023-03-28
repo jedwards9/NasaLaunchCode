@@ -7,8 +7,8 @@ const int button2 = 11;
 const int button1 = 12;
 // const int mainDir2 = A0;
 // const int mainDir1 = A1;
-const int debug2 = A1;
-const int debug3 = A2;
+const int debugRed = A1;
+const int debugYellow = A2;
 const int airbagDeploy = 8;
 
 /** Hardware declarations **/
@@ -41,12 +41,9 @@ struct sensorReadings {
 /**  Program Constants  **/  
 const int SAMPLE_PERIOD = 50;
 const int MAX_QUEUE_SIZE = 25;
-const int MAX_ANGLE = 10;
-const int TILT_SERVO_SPEED = 45;
-const float MOTOR_SMOOTHING = 0.8;
 const int ESP_DELAY = 1000;
 const int DELAY_60deg = 500;
-const int LAUNCH_DEAD_TIME = 5000;
+const int LAUNCH_DEAD_TIME = 30000;
 const unsigned int AIRBAG_DELAY_TIME = 60000;
 const int picDelay = 2000;
 
@@ -57,9 +54,9 @@ const int MAX_ROTATION_SPEED = 255;
 /**  Threshold Values  **/
 const float INITIAL_THRESH = 1; // Main axis threshold
 const float LANDING_THRESH = 0.7 * MAX_QUEUE_SIZE;     // Landing movement threshold
-const int LAUNCH_THRESH = 5 * MAX_QUEUE_SIZE;     // Launch movement threshold
-const float MAIN_EPSILON = 0.2;   // Float comparison error threshold for MAIN leveling 
-const float TILT_EPSILON =  0.25;  // Float comparison error threshold for TILT leveling
+const int LAUNCH_THRESH = 5 * MAX_QUEUE_SIZE;          // Launch movement threshold
+const float MAIN_EPSILON = 0.2;                        // Float comparison error threshold for MAIN leveling 
+const float TILT_EPSILON =  0.25;                      // Float comparison error threshold for TILT leveling
 
 /** Picture Commands **/
 const int TAKE_PICTURE = 1;
@@ -69,11 +66,10 @@ const int APPLY_SPECIAL = 4;
 const int REMOVE_FILTER = 5;
 const int FLIP_180 = 6;
 
-/**  Global Variables  **/
+/**  Hall of Shame  **/
 flightStage rocket_state;
 levelAxis currAxis;
 ArduinoQueue<sensorReadings> data(MAX_QUEUE_SIZE);
 unsigned long launchTime;
-float initial_angle;    // Loop -- IN_AIR
 bool moveCamera;
 int landingCounter;
