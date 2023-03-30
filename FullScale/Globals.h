@@ -50,7 +50,7 @@ const int MAX_ROTATION_SPEED = 255;
 /**  Threshold Values  **/
 const float INITIAL_THRESH = 1; // Main axis threshold
 const int LANDING_THRESH = 5 * MAX_QUEUE_SIZE;     // Landing movement threshold
-const int LAUNCH_THRESH = 11 * MAX_QUEUE_SIZE;     // Launch movement threshold
+const int LAUNCH_THRESH = -7 * MAX_QUEUE_SIZE;     // Launch movement threshold
 const float EPSILON = 0.02;       // Float comparison error threshold
 const float MAIN_EPSILON = 0.2;   // Float comparison error threshold for MAIN leveling 
 const float TILT_EPSILON =  0.25;  // Float comparison error threshold for TILT leveling

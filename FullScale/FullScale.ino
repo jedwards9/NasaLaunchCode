@@ -44,7 +44,7 @@ void setup() {
   telescopeServo.attach(telescopePin);
 
   // Setting servos initially to off
-  tiltServo.write(75);
+  tiltServo.write(110);
   rotationServo.write(90);
   telescopeServo.write(0);
 
@@ -285,7 +285,7 @@ bool impulseDetection(int thresh, sensorReadings readings, float queueSum) {
   static int stateCounter = 0;
   Serial.println(queueSum / MAX_QUEUE_SIZE);
   // Transition between ON_PAD and IN_AIR
-  if( (rocket_state == ON_PAD) && (queueSum > thresh) ) {
+  if( (rocket_state == ON_PAD) && (queueSum < thresh) ) {
     return true;
   }
   // Transition between IN_AIR and LANDED
