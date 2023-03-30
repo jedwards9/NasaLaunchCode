@@ -41,10 +41,15 @@ const int MAX_QUEUE_SIZE = 25;
 const int MAX_ANGLE = 10;
 const int TILT_SERVO_SPEED = 45;
 const float MOTOR_SMOOTHING = 0.8;
+<<<<<<< Updated upstream
 const int ESP_DELAY = 1000;
 const int DELAY_60deg = 500;
 const int LAUNCH_DEAD_TIME = 5000;
 const unsigned int AIRBAG_DELAY_TIME = 60000;
+=======
+const int DELAY_60o = 500;
+const int LAUNCH_DEAD_TIME = 30000;
+>>>>>>> Stashed changes
 
 // might want different speeds for the different axes
 const int MIN_ROTATION_SPEED = 70;     // Rotation speed for main axis
@@ -53,7 +58,7 @@ const int MAX_ROTATION_SPEED = 255;
 /**  Threshold Values  **/
 const float INITIAL_THRESH = 1; // Main axis threshold
 const int LANDING_THRESH = 5 * MAX_QUEUE_SIZE;     // Landing movement threshold
-const int LAUNCH_THRESH = 5 * MAX_QUEUE_SIZE;     // Launch movement threshold
+const int LAUNCH_THRESH = 11 * MAX_QUEUE_SIZE;     // Launch movement threshold
 const float EPSILON = 0.02;       // Float comparison error threshold
 const float MAIN_EPSILON = 0.2;   // Float comparison error threshold for MAIN leveling 
 const float TILT_EPSILON =  0.25;  // Float comparison error threshold for TILT leveling
