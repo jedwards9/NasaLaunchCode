@@ -47,7 +47,7 @@ void setup() {
   mainMotor.attach(mainPWM);
 
   // Setting servos initially to off
-  tiltServo.write(90);
+  tiltServo.write(110); // slight tilt so the head doesn't catch the wind.
   rotationServo.write(90);
   telescopeServo.write(0);
   mainMotor.write(90);
@@ -65,7 +65,7 @@ void setup() {
 }
 
 void loop() {
-  static numReadings = 0;
+  static  int numReadings = 0;
   static sensorReadings readings = {0,0,0};
   delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
@@ -78,7 +78,7 @@ void loop() {
   numReadings += 1;
   
   // Limiting the number of readings being saved
-  if(numReadings % 2 = 0) {
+  if(numReadings % 2 == 0) {
     writeToFile(readings);
   }
 
@@ -93,7 +93,7 @@ void loop() {
         rocket_state = IN_AIR;
         launchTime = millis();
         // Launched: wait to continue detecting (30sec delay)
-        delay(LAUNCH_DEAD_TIME);
+       // delay(LAUNCH_DEAD_TIME);
       }
       // Else: do nothing
       break;
@@ -108,27 +108,31 @@ void loop() {
       }
       
       // Wait for landing 
-      if( impulseDetection(LANDING_THRESH, queueSum.y) ) {
-        landingCounter += 1;
-        Serial.println("landing");
-        if( landingCounter > 25000 ) {
-          rocket_state = LANDED;
-        }
+      if(millis() - launchTime > LAUNCH_DEAD_TIME){
+        rocket_state = LANDED;
       }
-      else { 
-        landingCounter = 0;
-      }
+      // if( impulseDetection(LANDING_THRESH, queueSum.y) ) {
+      //   landingCounter += 1;
+      //   Serial.println("landing");
+      //   if( landingCounter > 25000 ) {
+      //     rocket_state = LANDED;
+      //   }
+      // }
+      // else { 
+      //   landingCounter = 0;
+      // }
       break;
 
     case LANDED:
       digitalWrite(debugRed, LOW);
       digitalWrite(debugYellow, HIGH);
       digitalWrite(airbagDeploy, HIGH);
-
       if( currAxis == MAIN)  {
         motorLogic(readings);
       }
       else if( currAxis == TELESCOPE) {
+          tiltServo.write(90);  //Resets tilt before popping out so it doesn't hit the tube.
+          delay(50);
           Serial.println("Telescope");
           motorLogic(readings); // The inputs don't matter I think.
           currAxis = R_AXIS;
@@ -194,7 +198,7 @@ void loop() {
 }
 
 String getRadioData(){
-  return "A1C3B2C3F6D3";
+  return "A1C3B2C3F6G7C3D3";
 }
 
 // removed float sensorVal (which was just one of the readings)
@@ -266,7 +270,7 @@ bool impulseDetection(int thresh, float queueSum) {
   static bool prevLaunchSign = false;
   static int stateCounter = 0;
 
-  if( (rocket_state == ON_PAD) && (queueSum > thresh) ) {
+  if( (rocket_state == ON_PAD) && (queueSum < thresh) ) {
     return true;
   }
   else if( (rocket_state == IN_AIR) && (queueSum < thresh) ) {
@@ -310,16 +314,25 @@ float mag(sensorReadings readings) {
 void cameraCommands(int camera_command) {
   Serial.println("Debug 6");
   delay(picDelay);
+  String message;
   switch(camera_command) {
     case 1:
       takePicture();
       break;
     case 2: // Gray
+      message = String(camera_command) + " PIC ------------- ";
+      Serial.println(message);
     case 3: // Color
+      message = String(camera_command) + " PIC ------------- ";
+      Serial.println(message);
     case 4: // Special
+      message = String(camera_command) + " PIC ------------- ";
+      Serial.println(message);
     case 5: // Remove Special
+      message = String(camera_command) + " PIC ------------- ";
+      Serial.println(message);
     case 6: // Flip 
-      String message = String(camera_command) + " PICTURE ------------- ";
+      message = String(camera_command) + " PIC ------------- ";
       Serial.println(message);
       break;
     default:
@@ -331,7 +344,7 @@ void cameraCommands(int camera_command) {
 void takePicture(){
   rtc.refresh();
     
-    String message = "1 PICTURE Date_";
+    String message = "1 PIC Date_";
     message += rtc.month();
     message += "-";
     message += rtc.day();

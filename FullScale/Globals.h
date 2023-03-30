@@ -43,8 +43,8 @@ const int SAMPLE_PERIOD = 50;
 const int MAX_QUEUE_SIZE = 25;
 const int ESP_DELAY = 1000;
 const int DELAY_60deg = 500;
-const int LAUNCH_DEAD_TIME = 30000;
-const unsigned int AIRBAG_DELAY_TIME = 60000;
+const int LAUNCH_DEAD_TIME = 30000; //180000 miliseconds for 3 mins
+const unsigned int AIRBAG_DELAY_TIME = 10000;
 const int picDelay = 2000;
 
 // might want different speeds for the different axes
@@ -54,7 +54,7 @@ const int MAX_ROTATION_SPEED = 255;
 /**  Threshold Values  **/
 const float INITIAL_THRESH = 1; // Main axis threshold
 const float LANDING_THRESH = 0.7 * MAX_QUEUE_SIZE;     // Landing movement threshold
-const int LAUNCH_THRESH = 5 * MAX_QUEUE_SIZE;          // Launch movement threshold
+const int LAUNCH_THRESH = -7 * MAX_QUEUE_SIZE;          // Launch movement threshold
 const float MAIN_EPSILON = 0.2;                        // Float comparison error threshold for MAIN leveling 
 const float TILT_EPSILON =  0.25;                      // Float comparison error threshold for TILT leveling
 
