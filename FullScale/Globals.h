@@ -43,7 +43,8 @@ const int SAMPLE_PERIOD = 50;
 const int MAX_QUEUE_SIZE = 25;
 const int ESP_DELAY = 1000;
 const int DELAY_60deg = 500;
-const int LAUNCH_DEAD_TIME = 30000; //180000 miliseconds for 3 mins
+const int DELAY_PIC = 5000;
+const int LAUNCH_DEAD_TIME = 10000; //180000 miliseconds for 3 mins
 const unsigned int AIRBAG_DELAY_TIME = 10000;
 const int picDelay = 2000;
 

@@ -71,7 +71,7 @@ void loop() {
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
   readings = { a.acceleration.x, a.acceleration.y, a.acceleration.z };
-  if(rocket_state == IN_AIR){
+  if(rocket_state == IN_AIR) {
     readings.y = abs(readings.y);
   }
   sensorReadings queueSum = queueLogic(readings);
@@ -124,10 +124,10 @@ void loop() {
       break;
 
     case LANDED:
-      digitalWrite(debugRed, LOW);
-      digitalWrite(debugYellow, HIGH);
       digitalWrite(airbagDeploy, HIGH);
       if( currAxis == MAIN)  {
+        digitalWrite(debugRed, LOW);
+        digitalWrite(debugYellow, HIGH);
         motorLogic(readings);
       }
       else if( currAxis == TELESCOPE) {
@@ -141,13 +141,12 @@ void loop() {
         motorLogic(readings);
       }
       else if ( currAxis == LEVELED ) {
-        /*  Need a for loop to take the first two characters of the string and determine what they are
-            Commands are also separated by a space, += 3 gets the next character, the space, and moves
-            to the beginning of the next command -- same reason for (i < length - 2)
-        //*/
+        digitalWrite(debugRed, HIGH);
+        digitalWrite(debugYellow, LOW);
         String comStr = getRadioData();
-        for(int i = 0; i < (comStr.length() - 2); i += 3) {
-          String curCommand = comStr.substring(i,i+1);
+        for(int i = 0; i < (comStr.length() - 2); i += 2) {
+          String curCommand = comStr.substring(i,i+2);
+          Serial.println(curCommand);
             if(curCommand.equalsIgnoreCase("A1")) {
               // Right 60o
               rotationServo.write(60);
@@ -164,30 +163,41 @@ void loop() {
             else if(curCommand.equalsIgnoreCase("C3")) {
               // Take picture
               cameraCommands(TAKE_PICTURE);
+              delay(DELAY_PIC);
             }
             else if(curCommand.equalsIgnoreCase("D4")) {
               // Change camera mode from color to grayscale
               cameraCommands(TO_GRAY);
+              delay(DELAY_PIC);
             }
             else if(curCommand.equalsIgnoreCase("E5")) {
               // Change camera mode from grayscale to color
               cameraCommands(TO_COLOR);
+              delay(DELAY_PIC);
             }
             else if(curCommand.equalsIgnoreCase("F6")) {
               // Rotate image 180o
               cameraCommands(FLIP_180);
+              delay(DELAY_PIC);
             }
             else if(curCommand.equalsIgnoreCase("G7")) {
               // Apply special filter
               cameraCommands(APPLY_SPECIAL);
+              delay(DELAY_PIC);
             }
             else if(curCommand.equalsIgnoreCase("H8")) {
               // Remove all filters
               cameraCommands(REMOVE_FILTER);
+              delay(DELAY_PIC);
             }
             else {
               // Panic
             }
+          }
+          
+          while(true){//Woohoo!!! All done!!
+            digitalWrite(debugRed, millis() % 250 < 125);
+            digitalWrite(debugYellow, millis() % 250 > 125);
           }
       }
       break;
@@ -208,18 +218,18 @@ void motorLogic(sensorReadings readings) {
   
   switch(currAxis) {
     case MAIN:
-      if( abs(readings.y) > MAIN_EPSILON ) {
-        if( readings.y - MAIN_EPSILON > 0 ) {
-          main_pos += 1;
+      if( abs(readings.x) > MAIN_EPSILON ) {
+        if( readings.x - MAIN_EPSILON > 0 ) {
+          main_pos = 155;
           delay(20);
         }
-        if( readings.y - MAIN_EPSILON < 0 ) {
-          main_pos -= 1;
+        if( readings.x - MAIN_EPSILON < 0 ) {
+          main_pos = 25;
           delay(20);
         }
         mainMotor.write(main_pos);
       }
-      else if( abs(readings.y) < MAIN_EPSILON ) { 
+      else if( abs(readings.x) < MAIN_EPSILON ) { 
         currAxis = TELESCOPE;
         mainMotor.write(90);
         Serial.println("Done leveling");
@@ -228,7 +238,7 @@ void motorLogic(sensorReadings readings) {
     
     case TELESCOPE:
       Serial.println("Telescope");
-      for (int i = 0; i <= 180; i += 1) {
+      for (int i = 0; i <= 180; i += 5) {
         telescopeServo.write(i);
         delay(20);
       }
@@ -250,15 +260,11 @@ void motorLogic(sensorReadings readings) {
       else if( abs(readings.y) < TILT_EPSILON ) { 
         currAxis = LEVELED;
         Serial.println("Done leveling");
-        digitalWrite(LED_BUILTIN, millis() % 500 < 250);
-        delay(3000);
-        takePicture();
-        delay(3000);
       }
-
       break;
 
     case LEVELED:
+      //should never get called
       break;
 
     default:
