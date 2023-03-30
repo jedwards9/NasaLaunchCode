@@ -13,12 +13,12 @@ void setup() {
   pinMode(swivelPin, OUTPUT);
   pinMode(tiltPin, OUTPUT);
   pinMode(mainPWM, OUTPUT);
-  pinMode(mainDir1, OUTPUT);
-  pinMode(mainDir2, OUTPUT);
   pinMode(button1, INPUT_PULLUP);
   pinMode(button2, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(airbagDeploy, OUTPUT);
+  pinMode(debugRed, OUTPUT);
+  pinMode(debugYellow, OUTPUT);
 
   digitalWrite(airbagDeploy, HIGH);
 
@@ -44,11 +44,13 @@ void setup() {
   tiltServo.attach(tiltPin);
   rotationServo.attach(swivelPin);
   telescopeServo.attach(telescopePin);
+  mainMotor.attach(mainPWM);
 
   // Setting servos initially to off
-  tiltServo.write(75);
+  tiltServo.write(110); // slight tilt so the head doesn't catch the wind.
   rotationServo.write(90);
   telescopeServo.write(0);
+  mainMotor.write(90);
 
   // Initializing queue with 0s
   for(int i = 0; i < MAX_QUEUE_SIZE; i++) {
@@ -58,128 +60,135 @@ void setup() {
   // Variable initialization 
   rocket_state = ON_PAD;          // Stage counter 
   currAxis = MAIN;                // Axis being leveled
-  initial_angle = 0.0;            // Starting position of camera upon landing
-  moveCamera = false; 
+  moveCamera = false;
+  landingCounter = 0; 
 }
 
 void loop() {
-  static sensorReadings prevReadings;
-  static sensorReadings deltaReadings;
+  static  int numReadings = 0;
   static sensorReadings readings = {0,0,0};
   delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
-  //prevReadings = readings;
   readings = { a.acceleration.x, a.acceleration.y, a.acceleration.z };
   if(rocket_state == IN_AIR){
     readings.y = abs(readings.y);
   }
-  //deltaReadings = {readings.x - prevReadings.x, readings.y - prevReadings.y, readings.z - prevReadings.z};
   sensorReadings queueSum = queueLogic(readings);
-
+  numReadings += 1;
+  
+  // Limiting the number of readings being saved
+  if(numReadings % 2 == 0) {
+    writeToFile(readings);
+  }
 
   switch(rocket_state) {
     case ON_PAD:
-      //blink LED to indicate on the pad
-      digitalWrite(LED_BUILTIN, millis() % 500 < 250);
+      Serial.println(readings.y);
+      // Blink LEDs to indicate on the pad
+      digitalWrite(debugRed, millis() % 500 < 250);
+      digitalWrite(debugYellow, millis() % 500 < 250);
       // Waiting for takeoff
-      if( impulseDetection(LAUNCH_THRESH, readings, queueSum.y) ) {
+      if(impulseDetection(LAUNCH_THRESH, queueSum.y) ) {
         rocket_state = IN_AIR;
         launchTime = millis();
-        //wait until after apogee
-        delay(LAUNCH_DEAD_TIME);
+        // Launched: wait to continue detecting (30sec delay)
+       // delay(LAUNCH_DEAD_TIME);
       }
       // Else: do nothing
       break;
 
-
     case IN_AIR:
-      //check if secondary needs deployed yet
+      digitalWrite(debugRed, HIGH);
+      digitalWrite(debugYellow, HIGH);
+      
+      //check if secondary needs deployed yet (60sec since launch)
       if(millis() - launchTime > AIRBAG_DELAY_TIME){
         digitalWrite(airbagDeploy, LOW);
       }
-      digitalWrite(LED_BUILTIN, LOW);
+      
       // Wait for landing 
-      if( impulseDetection(LANDING_THRESH, readings, queueSum.y) ) {
+      if(millis() - launchTime > LAUNCH_DEAD_TIME){
         rocket_state = LANDED;
-        initial_angle = readings.z;
       }
+      // if( impulseDetection(LANDING_THRESH, queueSum.y) ) {
+      //   landingCounter += 1;
+      //   Serial.println("landing");
+      //   if( landingCounter > 25000 ) {
+      //     rocket_state = LANDED;
+      //   }
+      // }
+      // else { 
+      //   landingCounter = 0;
+      // }
       break;
 
-
     case LANDED:
-      digitalWrite(LED_BUILTIN, HIGH);
+      digitalWrite(debugRed, LOW);
+      digitalWrite(debugYellow, HIGH);
       digitalWrite(airbagDeploy, HIGH);
-      // Level axes
-      // if ( currAxis == NONE ) {
-      //   // Wait for no movement
-      //   impulseDetection(LANDING_THRESH, readings, mag(queueSum));
-      // }
       if( currAxis == MAIN)  {
-        if(rotationProtection) {
-          // Begin leveling
-          motorLogic(readings.x, readings);
-        }
-        /*
-          Past level... do something (or not)
-          If we do nothing, it might be close enough to level 
-          to just stop and call it leveled
-        */
+        motorLogic(readings);
       }
-      else if( currAxis == TELESCOPE){
+      else if( currAxis == TELESCOPE) {
+          tiltServo.write(90);  //Resets tilt before popping out so it doesn't hit the tube.
+          delay(50);
           Serial.println("Telescope");
-          motorLogic(readings.x, readings); //Doesn't Matter the Inputs I dont think.
+          motorLogic(readings); // The inputs don't matter I think.
           currAxis = R_AXIS;
       }  
       else if( currAxis == R_AXIS ) {
-        motorLogic(readings.x, readings);
+        motorLogic(readings);
       }
       else if ( currAxis == LEVELED ) {
-      /*  Need a for loop to take the first two characters of the string and determine what they are
-          Commands are also separated by a space, += 3 gets the next character, the space, and moves
-          to the beginning of the next command -- same reason for (i < length - 2)
-      //*/
-      String comStr = getRadioData();
-      for(int i = 0; i < (comStr.length() - 2); i += 3) {
-        String curCommand = comStr.substring(i,i+1);
-          if(curCommand.equalsIgnoreCase("A1")) {
-            // Right 60o
-            moveCamera = true;
-            motorWrite(1, 0);
+        /*  Need a for loop to take the first two characters of the string and determine what they are
+            Commands are also separated by a space, += 3 gets the next character, the space, and moves
+            to the beginning of the next command -- same reason for (i < length - 2)
+        //*/
+        String comStr = getRadioData();
+        for(int i = 0; i < (comStr.length() - 2); i += 3) {
+          String curCommand = comStr.substring(i,i+1);
+            if(curCommand.equalsIgnoreCase("A1")) {
+              // Right 60o
+              rotationServo.write(60);
+              delay(DELAY_60deg);
+              rotationServo.write(90);
+            }
+            else if(curCommand.equalsIgnoreCase("B2")) {
+              // Left 60o
+              rotationServo.write(120);
+              delay(DELAY_60deg);
+              rotationServo.write(90);
+              moveCamera = false;
+            }
+            else if(curCommand.equalsIgnoreCase("C3")) {
+              // Take picture
+              cameraCommands(TAKE_PICTURE);
+            }
+            else if(curCommand.equalsIgnoreCase("D4")) {
+              // Change camera mode from color to grayscale
+              cameraCommands(TO_GRAY);
+            }
+            else if(curCommand.equalsIgnoreCase("E5")) {
+              // Change camera mode from grayscale to color
+              cameraCommands(TO_COLOR);
+            }
+            else if(curCommand.equalsIgnoreCase("F6")) {
+              // Rotate image 180o
+              cameraCommands(FLIP_180);
+            }
+            else if(curCommand.equalsIgnoreCase("G7")) {
+              // Apply special filter
+              cameraCommands(APPLY_SPECIAL);
+            }
+            else if(curCommand.equalsIgnoreCase("H8")) {
+              // Remove all filters
+              cameraCommands(REMOVE_FILTER);
+            }
+            else {
+              // Panic
+            }
           }
-          else if(curCommand.equalsIgnoreCase("B2")) {
-            // Left 60o
-            moveCamera = true;
-            motorWrite(0, 0);
-          }
-          else if(curCommand.equalsIgnoreCase("C3")) {
-            // Take picture
-            cameraCommands(TAKE_PICTURE);
-          }
-          else if(curCommand.equalsIgnoreCase("D4")) {
-            // Change camera mode from color to grayscale
-            cameraCommands(TO_GRAY);
-          }
-          else if(curCommand.equalsIgnoreCase("E5")) {
-            // Change camera mode from grayscale to color
-            cameraCommands(TO_COLOR);
-          }
-          else if(curCommand.equalsIgnoreCase("F6")) {
-            // Rotate image 180o
-            cameraCommands(FLIP_180);
-          }
-          else if(curCommand.equalsIgnoreCase("G7")) {
-            // Apply special filter
-            cameraCommands(APPLY_SPECIAL);
-          }
-          else if(curCommand.equalsIgnoreCase("H8")) {
-            // Remove all filters
-            cameraCommands(REMOVE_FILTER);
-          }
-          else {
-            // Panic
-          }
-        }
       }
       break;
     default:
@@ -189,92 +198,32 @@ void loop() {
 }
 
 String getRadioData(){
-  return "A1C3B2C3F6D3";
+  return "A1C3B2C3F6G7C3D3";
 }
 
-void motorWrite(bool dir, int speed) {
-  switch(currAxis) {
-    case NONE:
-      digitalWrite(mainDir1, 0);
-      digitalWrite(mainDir2, 0);
-      analogWrite(mainPWM, 0);
-      telescopeServo.write(0);
-      tiltServo.write(90);
-      rotationServo.write(90);
-      break; 
-
-    case MAIN:
-      digitalWrite(mainDir1, dir);
-      digitalWrite(mainDir2, !dir);
-      analogWrite(mainPWM, speed);
-      break;
-
-    case LEVELED:
-      // Camera head movement
-      if(moveCamera) {
-        if(dir) { // Right
-          rotationServo.write(60);
-          delay(DELAY_60deg);
-        }
-        else {    // Left
-          rotationServo.write(120);
-          delay(DELAY_60deg);
-        }
-        rotationServo.write(90);
-      }
-      moveCamera = false;
-      break;
-
-    default:
-      // Turning off all the pins
-      digitalWrite(mainDir1, 0);
-      digitalWrite(mainDir2, 0);
-      analogWrite(mainPWM, 0);
-
-      digitalWrite(tiltPin, 0);
-      digitalWrite(swivelPin, 0);
-      break;
-  }
-}
-
-void motorLogic(float sensorVal, sensorReadings readings) {
-  static float runVal = 0;
+// removed float sensorVal (which was just one of the readings)
+void motorLogic(sensorReadings readings) {
   static int tilt_pos = 90;
-  runVal = (sensorVal* MOTOR_SMOOTHING) + (runVal * (1-MOTOR_SMOOTHING));
-  if(abs(runVal) < MIN_ROTATION_SPEED) {
-    runVal = (runVal / abs(runVal)) * MIN_ROTATION_SPEED;
-  }
-
+  static int main_pos = 90;
+  
   switch(currAxis) {
-    case NONE:
-      // Do nothing 
-      break;
-
     case MAIN:
-      if(readings.z < 0 || runVal > MAX_ROTATION_SPEED){
-        if(runVal > 0){
-          runVal = MAX_ROTATION_SPEED;
+      if( abs(readings.y) > MAIN_EPSILON ) {
+        if( readings.y - MAIN_EPSILON > 0 ) {
+          main_pos += 1;
+          delay(20);
         }
-        else{
-          runVal = -MAX_ROTATION_SPEED;
+        if( readings.y - MAIN_EPSILON < 0 ) {
+          main_pos -= 1;
+          delay(20);
         }
+        mainMotor.write(main_pos);
       }
-
-      if( abs(sensorVal) > INITIAL_THRESH ) {
-        //motorWrite( runVal < 0, 20*abs(runVal) );
-        motorWrite( runVal < 0, abs(runVal));
-      }
-      else {
-        Serial.println("TELESCOPE");
-        motorWrite(false, 0);
+      else if( abs(readings.y) < MAIN_EPSILON ) { 
         currAxis = TELESCOPE;
+        mainMotor.write(90);
+        Serial.println("Done leveling");
       }
-      
-      // if (readings.z < MAIN_EPSILON) {
-      //   Serial.println("Telescope");
-      //   currAxis = TELESCOPE;
-      // }
-
       break;
     
     case TELESCOPE:
@@ -284,7 +233,6 @@ void motorLogic(float sensorVal, sensorReadings readings) {
         delay(20);
       }
       currAxis = R_AXIS;
-      
       break;
 
     case R_AXIS:
@@ -302,7 +250,7 @@ void motorLogic(float sensorVal, sensorReadings readings) {
       else if( abs(readings.y) < TILT_EPSILON ) { 
         currAxis = LEVELED;
         Serial.println("Done leveling");
-        digitalWrite(LED_BUILTIN, LOW);
+        digitalWrite(LED_BUILTIN, millis() % 500 < 250);
         delay(3000);
         takePicture();
         delay(3000);
@@ -311,7 +259,6 @@ void motorLogic(float sensorVal, sensorReadings readings) {
       break;
 
     case LEVELED:
-
       break;
 
     default:
@@ -319,15 +266,13 @@ void motorLogic(float sensorVal, sensorReadings readings) {
   }
 }
 
-bool impulseDetection(int thresh, sensorReadings readings, float queueSum) {
+bool impulseDetection(int thresh, float queueSum) {
   static bool prevLaunchSign = false;
   static int stateCounter = 0;
-  Serial.println(queueSum / MAX_QUEUE_SIZE);
-  // Transition between ON_PAD and IN_AIR
-  if( (rocket_state == ON_PAD) && (queueSum > thresh) ) {
+
+  if( (rocket_state == ON_PAD) && (queueSum < thresh) ) {
     return true;
   }
-  // Transition between IN_AIR and LANDED
   else if( (rocket_state == IN_AIR) && (queueSum < thresh) ) {
     return true;
   }
@@ -366,60 +311,28 @@ float mag(sensorReadings readings) {
   return magnitude;
 }
 
-//TODO: check state changes 
-bool rotationProtection(float axis) {  
-  static int state = 1;
-  switch(state) {
-    case 1: /**  @ Initial Angle  **/
-      // Next state (at vertical)
-      if(abs(axis - MAX_ANGLE <= EPSILON)) {
-        state = 2;
-      }
-      // Hold: else { state = 1; }
-      return true;
-      break;
-
-    case 2: /**  @ Vertical  **/
-      // Next state (past vertical)
-      if( abs(axis + initial_angle) <= EPSILON ) {
-        state = 3;
-      }
-      // Previous state 
-      else if( abs(axis - MAX_ANGLE) > EPSILON) {
-        state = 1;
-      }
-      // Hold: else { state = 2; }
-      return true;
-      break;
-
-    case 3: /**  @ Past Vertical **/
-      if( abs(axis - MAX_ANGLE) <= EPSILON ) {
-        state = 2;
-      }
-      // Hold: else { state = 3; }
-      return false;
-      break;
-
-    // Maybe add another state for back to initial angle 
-    default:
-      // Error...
-      break;
-  }
-}
-
 void cameraCommands(int camera_command) {
   Serial.println("Debug 6");
   delay(picDelay);
+  String message;
   switch(camera_command) {
     case 1:
       takePicture();
       break;
     case 2: // Gray
+      message = String(camera_command) + " PIC ------------- ";
+      Serial.println(message);
     case 3: // Color
+      message = String(camera_command) + " PIC ------------- ";
+      Serial.println(message);
     case 4: // Special
+      message = String(camera_command) + " PIC ------------- ";
+      Serial.println(message);
     case 5: // Remove Special
+      message = String(camera_command) + " PIC ------------- ";
+      Serial.println(message);
     case 6: // Flip 
-      String message = String(camera_command) + " PICTURE ------------- ";
+      message = String(camera_command) + " PIC ------------- ";
       Serial.println(message);
       break;
     default:
@@ -431,7 +344,7 @@ void cameraCommands(int camera_command) {
 void takePicture(){
   rtc.refresh();
     
-    String message = "1 PICTURE Date_";
+    String message = "1 PIC Date_";
     message += rtc.month();
     message += "-";
     message += rtc.day();
@@ -445,4 +358,15 @@ void takePicture(){
     message += rtc.second();
 
     Serial.println(message);
+}
+
+void writeToFile(sensorReadings readings) {
+  String message = "WRITE ";
+  message += String(readings.x) + "," + String(readings.y) + "," + String(readings.z) + '\n';
+  Serial.println(message);
+}
+
+void writeToFile(String value) {
+  String message = "WRITE ";
+  message += value;
 }

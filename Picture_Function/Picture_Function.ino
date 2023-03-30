@@ -53,7 +53,6 @@ String picTime;
 String message;
 int pic_num = 0;
 bool flipON = 0;
-bool received = 0;
 camera_config_t config;
 esp_err_t err;
 camera_fb_t *fb = NULL;
@@ -66,140 +65,104 @@ void setup() {
 }
 
 void loop() {
-  //put your main code here, to run repeatedly:
-//  pic_Setup();
-//  delay(50);
-//  take_Pic("Test");
-  //Serial.begin(115200);
-  received = 0;
-  while(received == 0){
-    if(Serial.available()){
-        Serial.println("Message Received: ");
-        message = Serial.readStringUntil('\n');
-        Serial.println(message);
-        if(message.substring(2,9) != "PICTURE"){
-          delay(100);
-          received = 1;
-          code = '0';
-          return;
-        }
-        code = message[0];
-        picTime = message.substring(9,message.length()-1);
-        received = 1;
-        delay(500);
+  if(Serial.available()) {
+    Serial.println("Message Received: ");
+    message = Serial.readStringUntil('\n');
+    Serial.println(message);
+
+    command = message.substring(2,5);
+    if(command = "PIC") {
+      code = message[0];
+      picTime = message.substring(5,message.length()-1);
+
+      switch(code){
+        case '1':
+          take_Pic(picTime);
+          break;
+        case '2':
+          s->set_special_effect(s, 2); //Grayscale
+          break;
+        case '3':
+          s->set_special_effect(s, 0); //Back to Color
+          break;
+        case '4':
+          s->set_special_effect(s, 4); //Apply Filter
+          break;
+        case '5':
+          s->set_special_effect(s, 0); //Remove Filter
+          break;
+        case '6':
+          if(flipON){
+            s->set_vflip(s, 0); //Turn Flip OFF
+          }
+          else{
+            s->set_vflip(s, 1); //Turn Flip ON
+          }
+          flipON = !flipON;
+          break;
+
+        default:
+          break;
+      }
     }
-    else
-      Serial.println("Nothing Yet.");  
+    else if(command = "WRT") {
+      information = message.substring(5, message.length()-1);
+      appendFile(SD_MMC, "/Flight_Data.txt", information);
+    }
+    else if(command = "CRT") {
+
+    }
+    else {
+    }
+
+    delay(500);
   }
-  //Serial.println(picTime);
-  //delay(500);
+  else { Serial.println("Nothing Yet."); }
+  
   Serial.println(message.substring(2,9));
-//  if(message.substring(2,9) == "PICTURE"){
-//    take_Pic(picTime);
-//  }
- // delay(10000);
+
   sensor_t * s = esp_camera_sensor_get();
-  switch(code){
-    case '1':
-      take_Pic(picTime);
-      break;
-    case '2':
-      s->set_special_effect(s, 2); //Grayscale
-      break;
-    case '3':
-      s->set_special_effect(s, 0); //Back to Color
-      break;
-    case '4':
-      s->set_special_effect(s, 4); //Apply Filter
-      break;
-    case '5':
-      s->set_special_effect(s, 0); //Remove Filter
-      break;
-     case '6':
-      if(flipON){
-        s->set_vflip(s, 0); //Turn Flip OFF
-      }
-      else{
-        s->set_vflip(s, 1); //Turn Flip ON
-      }
-      flipON = !flipON;
-      break;
-    default:
-      break;
-  }
+  
   //Serial.end();
   delay(500);
 }
     
 
 
-//  if(pic_num <= 3){
-//    take_Pic();
-//    if(pic_num == 0){
-//      sensor_t * s = esp_camera_sensor_get();
-//    //s->set_vflip(s, 1);
-//      s->set_special_effect(s, 2);  
-//    }
-//    if(pic_num == 1){
-//      sensor_t * s = esp_camera_sensor_get();
-//    s->set_vflip(s, 1);
-//      s->set_special_effect(s, 0);  
-//    }
-//    if(pic_num == 2){
-//      sensor_t * s = esp_camera_sensor_get();
-//    s->set_vflip(s, 0);
-//      s->set_special_effect(s, 4);  //0 – No Effect
-//    }
-//    
-//    pic_num = pic_num + 1;          //1 – Negative
-//    }                               //2 – Grayscale
-//}                                   //3 – Red Tint
-//                                    //4 – Green Tint
-//                                    //5 – Blue Tint
-//                                    //6 – Sepia
-
-
-
 void take_Pic(String picTime){
-fb = esp_camera_fb_get();  
-          if(!fb) {
-            Serial.println("Camera capture failed");
-            return;
-          }
-          // initialize EEPROM with predefined size
-        EEPROM.begin(EEPROM_SIZE);
-        pictureNumber = EEPROM.read(0) + 1;
-      
-        // Path where new picture will be saved in SD Card
-        String path = "/" + picTime +".jpg";
-      
-        fs::FS &fs = SD_MMC; 
-        Serial.printf("Picture file name: %s\n", path.c_str());
-        
-        File file = fs.open(path.c_str(), FILE_WRITE);
-        if(!file){
-          Serial.println("Failed to open file in writing mode");
-        } 
-        else {
-          file.write(fb->buf, fb->len); // payload (image), payload length
-          Serial.printf("Saved file to path: %s\n", path.c_str());
-          EEPROM.write(0, pictureNumber);
-          EEPROM.commit();
-          
-        }
-        file.close();
-        esp_camera_fb_return(fb);
+  fb = esp_camera_fb_get();  
+  if(!fb) {
+    Serial.println("Camera capture failed");
+    return;
+  }
+  // initialize EEPROM with predefined size
+  EEPROM.begin(EEPROM_SIZE);
+  pictureNumber = EEPROM.read(0) + 1;
+
+  // Path where new picture will be saved in SD Card
+  String path = "/" + picTime +".jpg";
+
+  fs::FS &fs = SD_MMC; 
+  Serial.printf("Picture file name: %s\n", path.c_str());
+  
+  File file = fs.open(path.c_str(), FILE_WRITE);
+  if(!file){
+    Serial.println("Failed to open file in writing mode");
+  } 
+  else {
+    file.write(fb->buf, fb->len); // payload (image), payload length
+    Serial.printf("Saved file to path: %s\n", path.c_str());
+    EEPROM.write(0, pictureNumber);
+    EEPROM.commit();
+    
+  }
+  file.close();
+  esp_camera_fb_return(fb);
 }
-
-
 
 void pic_Setup(){
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
  
-  //Serial.begin(115200);
-  //Serial.setDebugOutput(true);
-  //Serial.println();
-  
   //camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
