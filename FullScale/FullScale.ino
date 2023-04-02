@@ -19,8 +19,11 @@ void setup() {
   pinMode(airbagDeploy, OUTPUT);
   pinMode(debugRed, OUTPUT);
   pinMode(debugYellow, OUTPUT);
+  pinMode(hotWirePin, OUTPUT);
+
 
   digitalWrite(airbagDeploy, HIGH);
+  digitalWrite(hotWirePin, LOW);
 
   // RTC setup 
   uRTCLib rtc(0x68);
@@ -47,7 +50,7 @@ void setup() {
   mainMotor.attach(mainPWM);
 
   // Setting servos initially to off
-  tiltServo.write(110); // slight tilt so the head doesn't catch the wind.
+  tiltServo.write(90); // slight tilt so the head doesn't catch the wind.
   rotationServo.write(90);
   telescopeServo.write(0);
   mainMotor.write(90);
@@ -135,7 +138,8 @@ void loop() {
           delay(50);
           Serial.println("Telescope");
           motorLogic(readings); // The inputs don't matter I think.
-          currAxis = R_AXIS;
+          // currAxis = R_AXIS;
+          currAxis = LEVELED;
       }  
       else if( currAxis == R_AXIS ) {
         motorLogic(readings);
@@ -238,10 +242,21 @@ void motorLogic(sensorReadings readings) {
     
     case TELESCOPE:
       Serial.println("Telescope");
-      for (int i = 0; i <= 180; i += 5) {
-        telescopeServo.write(i);
-        delay(20);
-      }
+      // for (int i = 0; i <= 180; i += 5) {
+      //   telescopeServo.write(i);
+      //   delay(20);
+      // }
+      
+      // Continuous servo code
+      delay(1000);
+      digitalWrite(hotWirePin, HIGH);
+      delay(hotWireDelay);
+      telescopeServo.write(125);
+      delay(telescopeDelay);
+      telescopeServo.write(90);
+      delay(1000);
+      digitalWrite(hotWirePin, LOW);
+
       currAxis = R_AXIS;
       break;
 
