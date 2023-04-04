@@ -20,7 +20,7 @@ void setup() {
   pinMode(debugRed, OUTPUT);
   pinMode(debugYellow, OUTPUT);
   pinMode(hotWirePin, OUTPUT);
-
+  pinMode(buzzerPin, OUTPUT);
 
   digitalWrite(airbagDeploy, HIGH);
   digitalWrite(hotWirePin, LOW);
@@ -34,7 +34,11 @@ void setup() {
   if (!mpu.begin(0x69)) {
     Serial.println("Failed to find MPU6050 chip");
     while (1) {
-      delay(10);
+      tone(buzzerPin, 1397, 230);
+      delay(250);
+      noTone(buzzerPin);
+      tone(buzzerPin, 1480, 230);
+      delay(250);
     }
   }
   Serial.println("MPU6050 Found!");
@@ -64,7 +68,8 @@ void setup() {
   rocket_state = ON_PAD;          // Stage counter 
   currAxis = MAIN;                // Axis being leveled
   moveCamera = false;
-  landingCounter = 0; 
+  landingCounter = 0;
+  playSong();
 }
 
 void loop() {
@@ -390,4 +395,42 @@ void writeToFile(sensorReadings readings) {
 void writeToFile(String value) {
   String message = "WRITE ";
   message += value;
+}
+
+void playSong(){
+  int tempo = 80;
+  int melody[] = {
+    587,1,//D5
+    880,1,//A5
+    1175,1,//D6
+    0,8,//REST
+    1480,8,//FS6
+    1397,-1//F6
+  };
+  int notes = sizeof(melody) / sizeof(melody[0]) / 2;
+  int wholenote = (60000 * 2) / tempo;
+  int divider = 0, noteDuration = 0;
+
+  for (int thisNote = 0; thisNote < notes * 2; thisNote = thisNote + 2) {
+
+    // calculates the duration of each note
+    divider = melody[thisNote + 1];
+    if (divider > 0) {
+      // regular note, just proceed
+      noteDuration = (wholenote) / divider;
+    } else if (divider < 0) {
+      // dotted notes are represented with negative durations!!
+      noteDuration = (wholenote) / abs(divider);
+      noteDuration *= 1.5; // increases the duration in half for dotted notes
+    }
+
+    // we only play the note for 90% of the duration, leaving 10% as a pause
+    tone(buzzerPin, melody[thisNote], noteDuration*0.9);
+
+    // Wait for the specief duration before playing the next note.
+    delay(noteDuration);
+    
+    // stop the waveform generation before the next note.
+    noTone(buzzerPin);
+  }
 }

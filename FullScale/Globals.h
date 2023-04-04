@@ -6,11 +6,10 @@ const int mainPWM = 3;
 const int hotWirePin = 7;
 const int button2 = 11;
 const int button1 = 12;
-// const int mainDir2 = A0;
-// const int mainDir1 = A1;
 const int debugRed = A1;
 const int debugYellow = A2;
 const int airbagDeploy = 8;
+const int buzzerPin = 4;
 
 /** Hardware declarations **/
 Adafruit_MPU6050 mpu;
