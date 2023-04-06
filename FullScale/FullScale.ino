@@ -67,12 +67,12 @@ void setup() {
   // Variable initialization 
   rocket_state = ON_PAD;          // Stage counter 
   currAxis = MAIN;
+  hasRunDefaultCommands = false;
   playSong();
 }
 
 void loop() {
   static sensorReadings readings = {0,0,0};
-  static bool hasRunDefaultCommands = false;
   delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
@@ -110,7 +110,7 @@ void loop() {
       // Wait for landing 
       if(millis() - launchTime > LAUNCH_DEAD_TIME){
         rocket_state = LANDED;
-        landedTime = milis();
+        landedTime = millis();
       }
       break;
 
@@ -150,7 +150,6 @@ void loop() {
               rotationServo.write(120);
               delay(DELAY_60deg);
               rotationServo.write(90);
-              moveCamera = false;
             }
             else if(curCommand.equalsIgnoreCase("C3")) {
               // Take picture
@@ -192,7 +191,7 @@ void loop() {
         digitalWrite(debugRed, millis() % 250 < 125);
         digitalWrite(debugYellow, millis() % 250 > 125);
         
-        if( (milis() - landedTime > RADIO_FAILURE_TIME) && (!hasRunDefaultCommands) ) {
+        if( (millis() - landedTime > RADIO_FAILURE_TIME) && (!hasRunDefaultCommands) ) {
           defaultCameraCommands();
         }  
       }

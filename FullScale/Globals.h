@@ -44,7 +44,8 @@ const int MAX_QUEUE_SIZE = 25;
 const int ESP_DELAY = 1000;
 const int DELAY_60deg = 500;
 const int DELAY_PIC = 5000;
-const int LAUNCH_DEAD_TIME = 180000; //180000 miliseconds for 3 mins
+const int LAUNCH_DEAD_TIME = 180000;    // 180 seconds for 3 mins
+const int RADIO_FAILURE_TIME = 300000;  // 300 seconds for 5 minutes
 const unsigned int AIRBAG_DELAY_TIME = 30000;
 const int picDelay = 2000;
 const int hotWireDelay = 1000;
@@ -75,3 +76,4 @@ levelAxis currAxis;
 ArduinoQueue<sensorReadings> data(MAX_QUEUE_SIZE);
 unsigned long launchTime;
 unsigned long landedTime;
+bool hasRunDefaultCommands;

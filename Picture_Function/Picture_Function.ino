@@ -105,13 +105,6 @@ void loop() {
           break;
       }
     }
-    else if(command = "WRT") {
-      information = message.substring(5, message.length()-1);
-      appendFile(SD_MMC, "/Flight_Data.txt", information);
-    }
-    else if(command = "CRT") {
-
-    }
     else {
     }
 
