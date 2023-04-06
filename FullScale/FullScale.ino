@@ -54,7 +54,7 @@ void setup() {
   mainMotor.attach(mainPWM);
 
   // Setting servos initially to off
-  tiltServo.write(90); // slight tilt so the head doesn't catch the wind.
+  tiltServo.write(85);          // slight tilt so the head doesn't catch the wind.
   rotationServo.write(90);
   telescopeServo.write(0);
   mainMotor.write(90);
@@ -66,15 +66,13 @@ void setup() {
 
   // Variable initialization 
   rocket_state = ON_PAD;          // Stage counter 
-  currAxis = MAIN;                // Axis being leveled
-  moveCamera = false;
-  landingCounter = 0;
+  currAxis = MAIN;
   playSong();
 }
 
 void loop() {
-  static  int numReadings = 0;
   static sensorReadings readings = {0,0,0};
+  static bool hasRunDefaultCommands = false;
   delay(SAMPLE_PERIOD);
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
@@ -83,12 +81,6 @@ void loop() {
     readings.y = abs(readings.y);
   }
   sensorReadings queueSum = queueLogic(readings);
-  numReadings += 1;
-  
-  // Limiting the number of readings being saved
-  if(numReadings % 2 == 0) {
-    writeToFile(readings);
-  }
 
   switch(rocket_state) {
     case ON_PAD:
@@ -118,17 +110,8 @@ void loop() {
       // Wait for landing 
       if(millis() - launchTime > LAUNCH_DEAD_TIME){
         rocket_state = LANDED;
+        landedTime = milis();
       }
-      // if( impulseDetection(LANDING_THRESH, queueSum.y) ) {
-      //   landingCounter += 1;
-      //   Serial.println("landing");
-      //   if( landingCounter > 25000 ) {
-      //     rocket_state = LANDED;
-      //   }
-      // }
-      // else { 
-      //   landingCounter = 0;
-      // }
       break;
 
     case LANDED:
@@ -203,12 +186,17 @@ void loop() {
               // Panic
             }
           }
-          
-          while(true){//Woohoo!!! All done!!
-            digitalWrite(debugRed, millis() % 250 < 125);
-            digitalWrite(debugYellow, millis() % 250 > 125);
-          }
       }
+
+      while(true) {//Woohoo!!! All done!!
+        digitalWrite(debugRed, millis() % 250 < 125);
+        digitalWrite(debugYellow, millis() % 250 > 125);
+        
+        if( (milis() - landedTime > RADIO_FAILURE_TIME) && (!hasRunDefaultCommands) ) {
+          defaultCameraCommands();
+        }  
+      }
+
       break;
     default:
       // Throw error or do nothing? 
@@ -370,31 +358,20 @@ void cameraCommands(int camera_command) {
 void takePicture(){
   rtc.refresh();
     
-    String message = "1 PIC Date_";
-    message += rtc.month();
-    message += "-";
-    message += rtc.day();
-    message += "-";
-    message += rtc.year();
-    message += " Time_ ";
-    message += rtc.hour();
-    message += ";";
-    message += rtc.minute();
-    message += ";";
-    message += rtc.second();
+  String message = "1 PIC Date_";
+  message += rtc.month();
+  message += "-";
+  message += rtc.day();
+  message += "-";
+  message += rtc.year();
+  message += " Time_ ";
+  message += rtc.hour();
+  message += ";";
+  message += rtc.minute();
+  message += ";";
+  message += rtc.second();
 
-    Serial.println(message);
-}
-
-void writeToFile(sensorReadings readings) {
-  String message = "WRITE ";
-  message += String(readings.x) + "," + String(readings.y) + "," + String(readings.z) + '\n';
   Serial.println(message);
-}
-
-void writeToFile(String value) {
-  String message = "WRITE ";
-  message += value;
 }
 
 void playSong(){
@@ -433,4 +410,45 @@ void playSong(){
     // stop the waveform generation before the next note.
     noTone(buzzerPin);
   }
+}
+
+void defaultCameraCommands() {
+  // Assuming the camera starts centered, turns one direction for 120 degrees,
+  //   Will then 
+  rotationServo.write(120);
+  delay(DELAY_60deg);
+  delay(DELAY_60deg);
+  rotationServo.write(90);
+
+  for(int i = 0; i < 4; i++) {
+    rotationServo.write(60);
+    delay(DELAY_60deg);
+    rotationServo.write(90);
+    // Basic picture
+    cameraCommands(TAKE_PICTURE);
+    cameraCommands(TO_GRAY);
+    delay(500);
+    // Gray picture
+    cameraCommands(TAKE_PICTURE);
+    cameraCommands(APPLY_SPECIAL);
+    delay(500);
+    // Special filter
+    cameraCommands(TAKE_PICTURE);
+    cameraCommands(REMOVE_FILTER);
+    cameraCommands(FLIP_180);
+    delay(500);
+    // Flipped
+    cameraCommands(TAKE_PICTURE);
+    cameraCommands(TO_GRAY);
+    delay(500);
+    // Gray flipped
+    cameraCommands(TAKE_PICTURE);
+    cameraCommands(APPLY_SPECIAL);
+    delay(500);
+    // Special flipped 
+    cameraCommands(TAKE_PICTURE);
+    delay(750);
+  }
+
+  hasRunDefaultCommands = true;
 }

@@ -74,5 +74,4 @@ flightStage rocket_state;
 levelAxis currAxis;
 ArduinoQueue<sensorReadings> data(MAX_QUEUE_SIZE);
 unsigned long launchTime;
-bool moveCamera;
-int landingCounter;
+unsigned long landedTime;
