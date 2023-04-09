@@ -207,7 +207,6 @@ String getRadioData(){
   return "A1C3B2C3F6G7C3D3";
 }
 
-// removed float sensorVal (which was just one of the readings)
 void motorLogic(sensorReadings readings) {
   static int tilt_pos = 90;
   static int main_pos = 90;
@@ -419,7 +418,7 @@ void defaultCameraCommands() {
   delay(DELAY_60deg);
   rotationServo.write(90);
 
-  for(int i = 0; i < 4; i++) {
+  for(int i = 0; i < 6; i++) {
     rotationServo.write(60);
     delay(DELAY_60deg);
     rotationServo.write(90);
