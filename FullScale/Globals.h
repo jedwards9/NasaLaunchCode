@@ -44,9 +44,9 @@ const int MAX_QUEUE_SIZE = 25;
 const int ESP_DELAY = 1000;
 const int DELAY_60deg = 500;
 const int DELAY_PIC = 5000;
-const int LAUNCH_DEAD_TIME = 180000;    // 180 seconds for 3 mins
+const int LAUNCH_DEAD_TIME = 10000;    // 180 seconds for 3 mins
 const int RADIO_FAILURE_TIME = 300000;  // 300 seconds for 5 minutes
-const unsigned int AIRBAG_DELAY_TIME = 30000;
+const unsigned int AIRBAG_DELAY_TIME = 5000; // 30 seconds
 const int picDelay = 2000;
 const int hotWireDelay = 1000;
 const int telescopeDelay = 315;
@@ -58,7 +58,7 @@ const int MAX_ROTATION_SPEED = 255;
 /**  Threshold Values  **/
 const float INITIAL_THRESH = 1; // Main axis threshold
 const float LANDING_THRESH = 0.7 * MAX_QUEUE_SIZE;     // Landing movement threshold
-const int LAUNCH_THRESH = -11 * MAX_QUEUE_SIZE;          // Launch movement threshold
+const int LAUNCH_THRESH = -7 * MAX_QUEUE_SIZE;          // Launch movement threshold
 const float MAIN_EPSILON = 0.2;                        // Float comparison error threshold for MAIN leveling 
 const float TILT_EPSILON =  0.25;                      // Float comparison error threshold for TILT leveling
 

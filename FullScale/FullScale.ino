@@ -181,16 +181,13 @@ void loop() {
               cameraCommands(REMOVE_FILTER);
               delay(DELAY_PIC);
             }
-            else {
-              // Panic
-            }
           }
-      }
+        }
 
-      while(true) {//Woohoo!!! All done!!
+        while(true) { //Woohoo!!! All done!!
         digitalWrite(debugRed, millis() % 250 < 125);
         digitalWrite(debugYellow, millis() % 250 > 125);
-        
+      
         if( (millis() - landedTime > RADIO_FAILURE_TIME) && (!hasRunDefaultCommands) ) {
           defaultCameraCommands();
         }  
@@ -198,7 +195,6 @@ void loop() {
 
       break;
     default:
-      // Throw error or do nothing? 
       break;
   }
 }
@@ -224,7 +220,7 @@ void motorLogic(sensorReadings readings) {
         }
         mainMotor.write(main_pos);
       }
-      else if( abs(readings.x) < MAIN_EPSILON ) { 
+      if( abs(readings.x) < MAIN_EPSILON ) { 
         currAxis = TELESCOPE;
         mainMotor.write(90);
         Serial.println("Done leveling");
@@ -411,8 +407,6 @@ void playSong(){
 }
 
 void defaultCameraCommands() {
-  // Assuming the camera starts centered, turns one direction for 120 degrees,
-  //   Will then 
   rotationServo.write(120);
   delay(DELAY_60deg);
   delay(DELAY_60deg);
