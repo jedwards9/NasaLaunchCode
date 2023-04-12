@@ -54,9 +54,9 @@ void setup() {
   mainMotor.attach(mainPWM);
 
   // Setting servos initially to off
-  tiltServo.write(85);          // slight tilt so the head doesn't catch the wind.
+  tiltServo.write(90);          // slight tilt so the head doesn't catch the wind.
   rotationServo.write(90);
-  telescopeServo.write(0);
+  telescopeServo.write(90);
   mainMotor.write(90);
 
   // Initializing queue with 0s
@@ -68,6 +68,7 @@ void setup() {
   rocket_state = ON_PAD;          // Stage counter 
   currAxis = MAIN;
   hasRunDefaultCommands = false;
+  picNumber = 1;
   playSong();
 }
 
@@ -141,13 +142,13 @@ void loop() {
           Serial.println(curCommand);
             if(curCommand.equalsIgnoreCase("A1")) {
               // Right 60o
-              rotationServo.write(60);
+              rotationServo.write(75);
               delay(DELAY_60deg);
               rotationServo.write(90);
             }
             else if(curCommand.equalsIgnoreCase("B2")) {
               // Left 60o
-              rotationServo.write(120);
+              rotationServo.write(105);
               delay(DELAY_60deg);
               rotationServo.write(90);
             }
@@ -181,16 +182,15 @@ void loop() {
               cameraCommands(REMOVE_FILTER);
               delay(DELAY_PIC);
             }
-          }
         }
-
-        while(true) { //Woohoo!!! All done!!
-        digitalWrite(debugRed, millis() % 250 < 125);
-        digitalWrite(debugYellow, millis() % 250 > 125);
+          while(true) { //Woohoo!!! All done!!
+            digitalWrite(debugRed, millis() % 250 < 125);
+            digitalWrite(debugYellow, millis() % 250 > 125);
       
-        if( (millis() - landedTime > RADIO_FAILURE_TIME) && (!hasRunDefaultCommands) ) {
-          defaultCameraCommands();
-        }  
+            if( (millis() - landedTime > RADIO_FAILURE_TIME) && (!hasRunDefaultCommands) ) {
+              defaultCameraCommands();
+            }  
+          } 
       }
 
       break;
@@ -238,7 +238,7 @@ void motorLogic(sensorReadings readings) {
       delay(1000);
       digitalWrite(hotWirePin, HIGH);
       delay(hotWireDelay);
-      telescopeServo.write(125);
+      telescopeServo.write(100);
       delay(telescopeDelay);
       telescopeServo.write(90);
       delay(1000);
@@ -353,19 +353,22 @@ void takePicture(){
   rtc.refresh();
     
   String message = "1 PIC Date_";
-  message += rtc.month();
-  message += "-";
-  message += rtc.day();
-  message += "-";
-  message += rtc.year();
+  message += String(rtc.month());
+  message += "_";
+  message += String(rtc.day());
+  message += "_";
+  message += String(rtc.year());
   message += " Time_ ";
-  message += rtc.hour();
+  message += String(rtc.hour());
   message += ";";
-  message += rtc.minute();
+  message += String(rtc.minute());
   message += ";";
-  message += rtc.second();
+  message += String(rtc.second());
+  message += " ";
+  message += String(picNumber);
 
   Serial.println(message);
+  picNumber += 1;
 }
 
 void playSong(){

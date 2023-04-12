@@ -42,14 +42,14 @@ struct sensorReadings {
 const int SAMPLE_PERIOD = 50;
 const int MAX_QUEUE_SIZE = 25;
 const int ESP_DELAY = 1000;
-const int DELAY_60deg = 500;
+const int DELAY_60deg = 250; //Changed from 500.
 const int DELAY_PIC = 5000;
 const int LAUNCH_DEAD_TIME = 10000;    // 180 seconds for 3 mins
 const int RADIO_FAILURE_TIME = 300000;  // 300 seconds for 5 minutes
 const unsigned int AIRBAG_DELAY_TIME = 5000; // 30 seconds
 const int picDelay = 2000;
 const int hotWireDelay = 1000;
-const int telescopeDelay = 315;
+const int telescopeDelay = 400;
 
 // might want different speeds for the different axes
 const int MIN_ROTATION_SPEED = 70;     // Rotation speed for main axis
@@ -77,3 +77,4 @@ ArduinoQueue<sensorReadings> data(MAX_QUEUE_SIZE);
 unsigned long launchTime;
 unsigned long landedTime;
 bool hasRunDefaultCommands;
+int picNumber;
